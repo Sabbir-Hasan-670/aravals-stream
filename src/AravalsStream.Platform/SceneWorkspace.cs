@@ -25,6 +25,7 @@ public sealed class SceneWorkspace
     public int Schema { get; set; } = 1;
     public Guid SelectedSceneId { get; set; }
     public List<NativeScene> Scenes { get; set; } = [];
+    public List<Destination> Destinations { get; set; } = [];
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
     public static SceneWorkspace Create()

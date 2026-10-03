@@ -7,6 +7,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using AravalsStream.Core.Models;
 using System.Globalization;
+using AravalsStream.Core.Interfaces;
 
 namespace AravalsStream.Desktop;
 
@@ -21,6 +22,9 @@ public sealed class WorkspaceWindow : Window
     private readonly ComboBox _canvas = new() { ItemsSource = new[] { "Horizontal · 1920×1080", "Vertical · 1080×1920" }, SelectedIndex = 0 };
     private readonly TextBox _server = new() { Watermark = "rtmps://server/application" };
     private readonly TextBox _key = new() { Watermark = "Stream key (kept in memory only)", PasswordChar = '●' };
+    private readonly ComboBox _destinations = new();
+    private readonly TextBox _destinationName = new() { Watermark = "Destination name", Text = "Custom RTMP" };
+    private readonly ISecretStorage _secrets = PlatformSecretStorage.Create();
     private readonly TextBox _recordPath = new() { Watermark = "Recording .mkv file path" };
     private readonly TextBlock _status = new() { Text = "Ready", TextWrapping = TextWrapping.Wrap };
     private readonly ComboBox _scenes = new();
@@ -68,7 +72,8 @@ public sealed class WorkspaceWindow : Window
         AddGeometry(geometry, "Opacity · 0–1", _opacity, 0, 2); AddGeometry(geometry, "Rotation", _rotation, 1, 2);
         tools.Children.Add(geometry); tools.Children.Add(_visible); tools.Children.Add(Button("Apply source transform", ApplyTransform));
         AddField(tools, "MICROPHONE", _microphone); AddField(tools, "DESKTOP AUDIO", _desktopAudio);
-        AddField(tools, "FFMPEG", _ffmpeg); AddField(tools, "STREAM SERVER", _server); tools.Children.Add(_key);
+        AddField(tools, "FFMPEG", _ffmpeg); AddField(tools, "DESTINATIONS", _destinations); tools.Children.Add(_destinationName);
+        AddField(tools, "STREAM SERVER", _server); tools.Children.Add(_key); tools.Children.Add(Button("Save destination securely", SaveDestination));
         var preview = Button("Start preview", TogglePreview); var stream = Button("Start / stop stream", ToggleStream);
         tools.Children.Add(preview); tools.Children.Add(stream); AddField(tools, "RECORDING", _recordPath); tools.Children.Add(Button("Start / stop recording", ToggleRecording));
         body.Children.Add(new ScrollViewer { Content = tools });
@@ -93,9 +98,13 @@ public sealed class WorkspaceWindow : Window
         };
         _layers.SelectionChanged += (_, _) => LoadTransform();
         _canvas.SelectionChanged += (_, _) => LoadTransform();
+        _destinations.SelectionChanged += (_, _) =>
+        {
+            if (_destinations.SelectedItem is Destination destination) { _destinationName.Text = destination.Name; _server.Text = destination.StreamUrl; _key.Text = ""; _key.Watermark = "New key (leave blank to keep saved key)"; }
+        };
         Opened += async (_, _) =>
         {
-            try { _workspace = await SceneWorkspace.LoadAsync(_workspacePath); RefreshScenes(); }
+            try { _workspace = await SceneWorkspace.LoadAsync(_workspacePath); RefreshScenes(); RefreshDestinations(); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { _status.Text = "Saved scene workspace could not be loaded; it will not be overwritten."; _workspaceWritable = false; }
             finally { _loading = false; }
         };
@@ -136,6 +145,26 @@ public sealed class WorkspaceWindow : Window
     private void RefreshLayers()
     { var selected = _layers.SelectedItem as NativeSceneSource; _layers.ItemsSource = Scene.Sources.ToArray(); _layers.SelectedItem = selected is not null && Scene.Sources.Contains(selected) ? selected : Scene.Sources.FirstOrDefault(); }
     private Task SaveWorkspace() => _workspaceWritable ? _workspace.SaveAsync(_workspacePath) : throw new IOException("Saved workspace could not be loaded. These edits cannot be saved without replacing that file.");
+    private void RefreshDestinations(Destination? selected = null)
+    { _destinations.ItemsSource = _workspace.Destinations.ToArray(); _destinations.SelectedItem = selected ?? _workspace.Destinations.FirstOrDefault(); }
+    private async Task SaveDestination()
+    {
+        RequireEditable();
+        if (!Uri.TryCreate(_server.Text, UriKind.Absolute, out var url) || url.Scheme is not ("rtmp" or "rtmps") || string.IsNullOrWhiteSpace(url.Host) ||
+            !string.IsNullOrEmpty(url.UserInfo) || !string.IsNullOrEmpty(url.Query) || !string.IsNullOrEmpty(url.Fragment))
+            throw new ArgumentException("Use an RTMP/RTMPS server URL; put the stream key in its separate field.");
+        var destination = (_destinations.SelectedItem as Destination)?.Copy() ?? new Destination();
+        destination.Name = string.IsNullOrWhiteSpace(_destinationName.Text) ? "Custom RTMP" : _destinationName.Text.Trim();
+        destination.StreamUrl = url.AbsoluteUri.TrimEnd('/'); destination.OutputMode = _canvas.SelectedIndex == 1 ? OutputMode.Vertical : OutputMode.Horizontal;
+        if (!string.IsNullOrWhiteSpace(_key.Text))
+        {
+            destination.StreamKeyReference ??= Guid.NewGuid().ToString("N");
+            await _secrets.StoreAsync(destination.StreamKeyReference, _key.Text);
+        }
+        var old = _workspace.Destinations.FindIndex(d => d.Id == destination.Id);
+        if (old >= 0) _workspace.Destinations[old] = destination; else _workspace.Destinations.Add(destination);
+        await SaveWorkspace(); _key.Text = ""; RefreshDestinations(destination); _status.Text = "Destination saved; its stream key is protected by the operating system credential store.";
+    }
     private void RequireEditable()
     { if (_loading) throw new InvalidOperationException("Scene workspace is loading."); if (_stream is not null || _record is not null) throw new InvalidOperationException("Stop outputs before editing scenes in this development workspace."); }
     private async Task AddScene()
@@ -193,7 +222,10 @@ public sealed class WorkspaceWindow : Window
     private async Task ToggleStream()
     {
         if (_stream is not null) { await _stream.DisposeAsync(); _stream = null; _status.Text = "Stream stopped"; return; }
-        var url = (_server.Text ?? "").TrimEnd('/') + (string.IsNullOrWhiteSpace(_key.Text) ? "" : "/" + _key.Text);
+        var key = _key.Text;
+        if (string.IsNullOrWhiteSpace(key) && _destinations.SelectedItem is Destination { StreamKeyReference: { } reference })
+            key = await _secrets.GetAsync(reference) ?? throw new IOException("The saved stream key is unavailable. Unlock the credential store or enter a replacement key.");
+        var url = (_server.Text ?? "").TrimEnd('/') + (string.IsNullOrWhiteSpace(key) ? "" : "/" + key);
         _stream = new(_ffmpeg.Text ?? "", MediaArguments.Output(Plan(), url, false));
         _status.Text = "Streaming process started; connection is being established.";
     }

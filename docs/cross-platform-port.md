@@ -13,7 +13,7 @@ Official references: [Avalonia supported platforms](https://docs.avaloniaui.net/
 
 ## Current portable implementation
 
-Actual preview, RTMP/RTMPS encoding, MKV recording, landscape/portrait canvas, image/video input and selected audio mixing are wired to FFmpeg. A moving test pattern is available for acceptance without capturing private desktop content. Stream keys remain in memory only in this workspace. Existing recordings are not intentionally overwritten by the UI.
+Actual preview, RTMP/RTMPS encoding, MKV recording, landscape/portrait canvas, image/video input and selected audio mixing are wired to FFmpeg. A moving test pattern is available for acceptance without capturing private desktop content. Scene/destination metadata persist in a separate portable profile. Saved stream keys use Windows DPAPI, macOS Keychain or Linux Secret Service; only opaque references go into JSON. Existing recordings are not intentionally overwritten by the UI.
 
 Native command planning covers Windows GDI/DirectShow, Linux X11/V4L2/PulseAudio and macOS AVFoundation. Device identifiers must come from native enumeration; macOS camera 0 must not be guessed as the screen. FFmpeg and OS capture permissions are required. Synthetic tests verify JPEG preview and actual H.264/AAC recording.
 
@@ -32,7 +32,7 @@ Native command planning covers Windows GDI/DirectShow, Linux X11/V4L2/PulseAudio
 | Independent multistream destinations/reconnect/adaptive bitrate | Existing Windows behavior; portable migration pending |
 | Camera/capture device/game capture | Backend planning exists for camera; native discovery and supported game/window capture pending |
 | Media monitoring, routing, meters and sync | Shared mixer exists; native capture and portable UI integration pending |
-| Persistent credentials | Windows DPAPI retained; macOS Security.framework Keychain and Linux Secret Service adapters implemented; native acceptance/UI integration pending |
+| Persistent credentials | Windows DPAPI, macOS Security.framework Keychain and Linux Secret Service adapters wired to saved destinations; native vault acceptance pending |
 | OAuth/provider controls, chat, alerts and Relay UI | Existing Core integration retained; portable view/controller migration pending |
 | Remote PC pairing/capture and cross-platform Agent | Original Windows implementation retained; native port pending |
 | Hotkeys, tray/recovery, accessibility | Portable integration pending |
@@ -41,4 +41,4 @@ Native command planning covers Windows GDI/DirectShow, Linux X11/V4L2/PulseAudio
 
 GitHub Actions artifacts named `desktop-development-*` are explicitly development builds. They must not be promoted or published on the download website as the completed Linux/macOS software. macOS Intel/Apple Silicon and Linux x64 are initial build targets; other architectures require separate acceptance.
 
-The portable project avoids shared application profiles while persistent settings/credential migration is pending. Production Relay deployment is not part of this task and has not been performed.
+Portable scenes and destinations use a separate profile under `AravalsStream/portable/`; existing Windows scene/device identifiers are not assumed compatible with native devices on another OS. Full settings import/migration is pending. Production Relay deployment is not part of this task and has not been performed.
