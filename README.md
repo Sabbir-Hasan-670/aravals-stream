@@ -2,6 +2,24 @@
 
 Windows desktop livestreaming application built with C#, .NET 8, WPF, and MVVM.
 
+## Downloads and platform status
+
+Use [Build & Release — Windows, Linux, macOS](https://github.com/Sabbir-Hasan-670/aravals-stream/actions/workflows/release.yml) to create all platform downloads, checksums and automatic release notes in one run. See [release instructions](docs/releases.md).
+
+The [0.20.1-beta release](https://github.com/Sabbir-Hasan-670/aravals-stream/releases/tag/v0.20.1-beta) contains the existing **Windows Desktop and Remote Capture Agent installers**, plus the optional Linux event Relay. The Relay is not the streaming desktop application.
+
+The complete Linux/macOS workstation port is **in development**, on `codex/portable-desktop`. `src/AravalsStream.Desktop` is an Avalonia development workspace with real FFmpeg preview, RTMP output and MKV recording. It is not feature-equivalent to the Windows workstation yet. See [port acceptance status](docs/cross-platform-port.md) before using development artifacts.
+
+Building the Windows solution from a fresh checkout requires .NET 8 and FFmpeg:
+
+```powershell
+./scripts/get-windows-ffmpeg.ps1
+dotnet build AravalsStream.sln -c Release
+dotnet test AravalsStream.sln -c Release
+```
+
+Windows installer scripts also require Inno Setup 6. The GitHub Actions workflow prepares these dependencies and tests the Windows workstation. Native Linux/macOS jobs compile the portable desktop and exercise synthetic media; this does not establish native screen/audio acceptance or complete feature parity.
+
 ## Build and run
 
 ```powershell

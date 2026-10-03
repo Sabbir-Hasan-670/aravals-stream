@@ -1,0 +1,149 @@
+name: Build & Release — Windows, Linux, macOS
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New release version (example: 0.20.1-port.1)'
+        required: true
+        default: '0.20.1-port.1'
+        type: string
+      source_ref:
+        description: 'Source branch, tag or commit to build'
+        required: true
+        default: 'codex/portable-desktop'
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      commit: ${{ steps.source.outputs.commit }}
+      version: ${{ steps.source.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+      - name: Validate version and freeze source commit
+        id: source
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          ./scripts/set-release-version.ps1 -Version $env:RELEASE_VERSION
+          "commit=$(git rev-parse HEAD)" >> $env:GITHUB_OUTPUT
+          "version=$env:RELEASE_VERSION" >> $env:GITHUB_OUTPUT
+  windows:
+    needs: prepare
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Set common release version
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: ./scripts/set-release-version.ps1 -Version $env:RELEASE_VERSION
+      - name: Prepare FFmpeg and installer tools
+        shell: pwsh
+        run: |
+          ./scripts/get-windows-ffmpeg.ps1
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed.' }
+      - name: Build and test Windows workstation
+        shell: pwsh
+        run: |
+          dotnet build AravalsStream.sln -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
+          dotnet test AravalsStream.sln -c Release --no-build --logger trx --results-directory artifacts/tests
+          if ($LASTEXITCODE -ne 0) { throw 'Tests failed.' }
+      - name: Package Windows installers
+        shell: pwsh
+        run: |
+          ./installer/build-installer.ps1
+          ./installer/build-agent-installer.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: installer/output/*.exe
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-windows-release
+          path: artifacts/tests/*.trx
+  portable:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: macos-15-intel
+            rid: osx-x64
+          - os: macos-latest
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Set common release version
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: ./scripts/set-release-version.ps1 -Version $env:RELEASE_VERSION
+      - name: Install Linux FFmpeg
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install macOS FFmpeg
+        if: runner.os == 'macOS'
+        run: command -v ffmpeg || brew install ffmpeg
+      - name: Test portable media and native contracts
+        run: dotnet test tests/AravalsStream.PlatformTests/AravalsStream.PlatformTests.csproj -c Release --logger trx
+      - name: Publish desktop
+        run: dotnet publish src/AravalsStream.Desktop/AravalsStream.Desktop.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o artifacts/desktop
+      - name: Package desktop
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_RUNTIME: ${{ matrix.rid }}
+        run: ./scripts/package-portable.ps1 -PublishDirectory artifacts/desktop -Runtime $env:RELEASE_RUNTIME -OutputDirectory artifacts/packages -Version $env:RELEASE_VERSION
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.rid }}
+          path: artifacts/packages/*.tar.gz
+          if-no-files-found: error
+  release:
+    needs: [prepare, windows, portable]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: artifacts/release
+          merge-multiple: true
+      - name: Publish all platforms and automatic release notes
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          BUILD_COMMIT: ${{ needs.prepare.outputs.commit }}
+          RELEASE_REPO: ${{ github.repository }}
+        run: ./scripts/publish-release.ps1 -Version $env:RELEASE_VERSION -Commit $env:BUILD_COMMIT -Repository $env:RELEASE_REPO -PackageDirectory artifacts/release
