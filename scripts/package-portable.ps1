@@ -9,7 +9,7 @@ $publish = (Resolve-Path -LiteralPath $PublishDirectory).Path
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $output = (Resolve-Path -LiteralPath $OutputDirectory).Path
 if (-not $Version) {
-    [xml]$project = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../src/AravalsStream.Desktop/AravalsStream.Desktop.csproj')
+    [xml]$project = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../Directory.Build.props')
     $Version = [string]$project.Project.PropertyGroup.Version
 }
 if ($Version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$') { throw 'Invalid package version.' }

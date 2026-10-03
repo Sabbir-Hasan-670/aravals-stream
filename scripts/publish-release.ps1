@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory=$true)][string]$Version,
     [Parameter(Mandatory=$true)][string]$Commit,
     [Parameter(Mandatory=$true)][string]$Repository,
-    [Parameter(Mandatory=$true)][string]$PackageDirectory
+    [Parameter(Mandatory=$true)][string]$PackageDirectory,
+    [ValidateSet('stable','development')][string]$Channel = 'development'
 )
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -10,14 +11,20 @@ if ($Version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9
 if ($Commit -notmatch '^[0-9a-f]{40}$') { throw 'Use the exact source commit SHA.' }
 if ($Repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') { throw 'Invalid GitHub repository.' }
 if (-not $env:GH_TOKEN) { throw 'GitHub release authentication is missing.' }
+if ($Channel -eq 'stable' -and $Version.Contains('-')) { throw 'Stable versions cannot contain a suffix.' }
+$prerelease = $Channel -ne 'stable'
+$latest = if ($prerelease) { 'false' } else { 'true' }
 $directory = (Resolve-Path -LiteralPath $PackageDirectory).Path
 $names = @(
     "AravalsStream-Setup-$Version.exe",
     "AravalsRemoteCapture-Setup-$Version.exe",
+    "AravalsStream-Relay-$Version-linux-x64.tar.gz"
+)
+if ($prerelease) { $names += @(
     "AravalsStream-Development-$Version-linux-x64.tar.gz",
     "AravalsStream-Development-$Version-osx-x64.tar.gz",
     "AravalsStream-Development-$Version-osx-arm64.tar.gz"
-)
+) }
 $checksums = @()
 foreach ($name in $names) {
     $path = Join-Path $directory $name
@@ -26,7 +33,7 @@ foreach ($name in $names) {
 }
 [IO.File]::WriteAllText((Join-Path $directory 'SHA256SUMS.txt'), ($checksums -join "`n") + "`n")
 $runUrl = "https://github.com/$Repository/actions/runs/$env:GITHUB_RUN_ID"
-$manifest = @{version=$Version; sourceCommit=$Commit; workflowRun=$runUrl; windows='Windows workstation and Remote Capture Agent'; linux='Desktop development port'; macOS='Intel and Apple Silicon desktop development ports'}
+$manifest = @{version=$Version; sourceCommit=$Commit; workflowRun=$runUrl; channel=$Channel; windows='Windows workstation and Remote Capture Agent'; linux='Relay; desktop port incomplete'; macOS='Desktop port incomplete'}
 [IO.File]::WriteAllText((Join-Path $directory 'BUILD-INFO.json'), ($manifest | ConvertTo-Json))
 $names += @('SHA256SUMS.txt','BUILD-INFO.json')
 $headers = @{Authorization=('Bearer ' + $env:GH_TOKEN); Accept='application/vnd.github+json'; 'X-GitHub-Api-Version'='2022-11-28'}
@@ -72,6 +79,33 @@ Live scene switching, full multistream/provider controls and remaining workstati
 
 $($generated.body)
 "@
+if (-not $prerelease) {
+    $body = @"
+# ARAVALS STREAM $Version — STABLE RELEASE
+
+| Product | Version | Download |
+| --- | --- | --- |
+| Desktop — Windows x64 | $Version | AravalsStream-Setup-$Version.exe |
+| Remote Capture Agent — Windows x64 | $Version | AravalsRemoteCapture-Setup-$Version.exe |
+| Optional Relay — Linux x64 | $Version | AravalsStream-Relay-$Version-linux-x64.tar.gz |
+
+SHA256SUMS.txt contains download checksums. BUILD-INFO.json records source commit $Commit and [regression/build results]($runUrl). No website or Relay deployment is performed by this workflow.
+
+## Verified scope and limitations
+
+The stable desktop release supports Windows. Linux/macOS desktop ports remain incomplete and are not included as stable workstation downloads. The Linux Relay is an event service, not the desktop app.
+
+Regression covers the existing recording, local RTMP streaming, encrypted Remote PC SRT media, Relay outage/reconnect continuity and shutdown paths. Automated provider fixtures do not establish live provider authorization or production webhook verification. Real Kick/Facebook callbacks and production Relay deployment remain unverified. Facebook reactions, Stars, follows and shares remain unsupported by the current integration/API. Direct injected game capture is not implemented; supported display/window capture is documented separately. macOS system audio and Linux Wayland desktop capture are not implemented.
+
+Windows installers include the media tools. Remote PC requires the documented network/pairing setup. Relay requires its documented production credentials, HTTPS configuration and persistence setup; installation does not deploy or configure it automatically.
+
+[Supported capabilities and release acceptance](https://github.com/$Repository/blob/$Commit/docs/stable-1.0.0.md).
+
+## Automatically generated changes
+
+$($generated.body)
+"@
+}
 $release = $null
 try { $release = Invoke-RestMethod -Headers $headers -Uri "$api/releases/tags/$tag" }
 catch { if ([int]$_.Exception.Response.StatusCode -ne 404) { throw } }
@@ -83,7 +117,8 @@ if ($release) {
     if (-not $release.draft) { throw 'That version is already published. Choose a new version; published downloads will not be overwritten.' }
     if ($release.target_commitish -ne $Commit) { throw 'Existing draft belongs to a different source commit. Choose a new version.' }
 } else {
-    $payload = @{tag_name=$tag; target_commitish=$Commit; name="Aravals Stream $Version — Windows, Linux, macOS"; body=$body; draft=$true; prerelease=$true; make_latest='false'} | ConvertTo-Json
+    $title = if ($prerelease) { "Aravals Stream $Version — Development" } else { "Aravals Stream $Version — Stable" }
+    $payload = @{tag_name=$tag; target_commitish=$Commit; name=$title; body=$body; draft=$true; prerelease=$prerelease; make_latest=$latest} | ConvertTo-Json
     $release = Invoke-RestMethod -Headers $headers -Method Post -Uri "$api/releases" -ContentType 'application/json' -Body $payload
 }
 # Keep the release private as a draft until every required download has uploaded and passed verification.
@@ -101,6 +136,6 @@ foreach ($name in $names) {
 }
 $assets = Invoke-RestMethod -Headers $headers -Uri "$api/releases/$($release.id)/assets?per_page=100"
 foreach ($name in $names) { if (-not ($assets | Where-Object {$_.name -eq $name -and $_.state -eq 'uploaded'})) { throw "Release asset missing: $name" } }
-$publish = @{draft=$false; prerelease=$true; body=$body; make_latest='false'} | ConvertTo-Json
+$publish = @{draft=$false; prerelease=$prerelease; body=$body; make_latest=$latest} | ConvertTo-Json
 $published = Invoke-RestMethod -Headers $headers -Method Patch -Uri "$api/releases/$($release.id)" -ContentType 'application/json' -Body $publish
-Write-Output "Published all-platform prerelease: $($published.html_url)"
+Write-Output "Published $Channel release: $($published.html_url)"

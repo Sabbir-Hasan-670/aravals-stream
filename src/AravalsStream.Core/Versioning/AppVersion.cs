@@ -8,7 +8,7 @@ public static class AppVersion
         .FirstOrDefault()?.InformationalVersion.Split('+')[0] ?? "unknown";
     public const string Name = "Aravals Stream";
     public const string Publisher = "Aravals";
-    public const string ReleaseChannel = "Beta";
+    public static readonly string ReleaseChannel = Version.Contains('-') ? "Development" : "Stable";
     public static readonly DateTime BuildDate = DateTime.UtcNow;
 
     public static string FullVersionString => $"{Name} v{Version} ({ReleaseChannel})";

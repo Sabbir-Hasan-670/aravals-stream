@@ -6,9 +6,9 @@ Livestreaming desktop software with a Windows workstation and a Linux/macOS desk
 
 Use [Build & Release — Windows, Linux, macOS](https://github.com/Sabbir-Hasan-670/aravals-stream/actions/workflows/release.yml) to create all platform downloads, checksums and automatic release notes in one run. See [release instructions](docs/releases.md).
 
-The [combined 0.20.1-port.1 release](https://github.com/Sabbir-Hasan-670/aravals-stream/releases/tag/v0.20.1-port.1) contains Windows installers and Linux/Mac Intel/Mac Apple Silicon desktop development packages, plus release notes, checksums and build information. All were built and published by one successful workflow run.
+The [stable 1.0.0 release](https://github.com/Sabbir-Hasan-670/aravals-stream/releases/tag/v1.0.0) provides **Windows Desktop and Remote Capture Agent installers** and an optional Linux event Relay, with checksums, build information and automatic release notes. See [supported capabilities and acceptance](docs/stable-1.0.0.md). The Relay is not a streaming desktop application.
 
-The [0.20.1-beta release](https://github.com/Sabbir-Hasan-670/aravals-stream/releases/tag/v0.20.1-beta) contains the existing **Windows Desktop and Remote Capture Agent installers**, plus the optional Linux event Relay. The Relay is not the streaming desktop application.
+Earlier Linux/Mac Intel/Mac Apple Silicon desktop development packages remain available in the [development release](https://github.com/Sabbir-Hasan-670/aravals-stream/releases/tag/v0.20.1-port.1). They are not stable workstation downloads.
 
 The complete Linux/macOS workstation port is **in development** in this solution. `src/AravalsStream.Desktop` is an Avalonia development workspace with real FFmpeg preview, RTMP output and MKV recording. It is not feature-equivalent to the Windows workstation yet. See [port acceptance status](docs/cross-platform-port.md) before using development artifacts.
 

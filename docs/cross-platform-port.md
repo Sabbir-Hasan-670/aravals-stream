@@ -6,7 +6,7 @@ User scope: full Aravals Stream on Windows, Linux and macOS. The existing Window
 
 - `AravalsStream.Core`: shared settings, scenes, destinations, provider clients, Relay client, event bus, alerts, recording/network models.
 - `AravalsStream.Platform`: portable native-input planning and FFmpeg process lifecycle. Arguments use `ProcessStartInfo.ArgumentList`; shell interpretation is never used. Raw encoder diagnostics are drained without exposing keys.
-- `AravalsStream.Desktop`: Avalonia desktop workspace targeting .NET 8. Separate development version `0.20.1-port.1` distinguishes it from the existing validated Windows release.
+- `AravalsStream.Desktop`: Avalonia desktop workspace targeting .NET 8, inheriting the common source version. Development package filenames and UI identify its incomplete status; it is excluded from stable workstation downloads.
 - Existing `AravalsStream.App` and `AravalsStream.RemoteAgent`: original Windows applications.
 
 Official references: [Avalonia supported platforms](https://docs.avaloniaui.net/docs/supported-platforms), [Avalonia 11.3.12 package](https://www.nuget.org/packages/Avalonia/11.3.12), [FFmpeg device contracts](https://ffmpeg.org/ffmpeg-devices.html), [FFmpeg binary distribution links](https://ffmpeg.org/download.html).

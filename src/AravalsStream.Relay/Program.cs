@@ -50,8 +50,8 @@ else
     });
 }
 app.UseRateLimiter();
-app.MapGet("/health", (RelayState state) => Results.Ok(new { status = "ok", version = "0.20.1-beta", uptimeSeconds = (long)clock.Elapsed.TotalSeconds, connections = state.ConnectionCount }));
-app.MapGet("/api/v1/status", (RelayState state) => Results.Ok(new { status = "available", version = "0.20.1-beta", connections = state.ConnectionCount }));
+app.MapGet("/health", (RelayState state) => Results.Ok(new { status = "ok", version = AravalsStream.Core.Versioning.AppVersion.Version, uptimeSeconds = (long)clock.Elapsed.TotalSeconds, connections = state.ConnectionCount }));
+app.MapGet("/api/v1/status", (RelayState state) => Results.Ok(new { status = "available", version = AravalsStream.Core.Versioning.AppVersion.Version, connections = state.ConnectionCount }));
 
 app.MapPost("/api/v1/enroll", async (HttpRequest req, RelayState state) =>
 {

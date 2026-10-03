@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType><TargetFramework>net8.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.20.1-port.1</Version><AssemblyName>AravalsStream.Desktop</AssemblyName><Product>Aravals Stream</Product>
+    <AssemblyName>AravalsStream.Desktop</AssemblyName><Product>Aravals Stream</Product>
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>

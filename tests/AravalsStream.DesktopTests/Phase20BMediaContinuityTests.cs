@@ -43,7 +43,7 @@ public sealed class Phase20BMediaContinuityTests(ITestOutputHelper output)
         Assert.NotNull(directory); var repo = directory!.FullName;
         var ffmpeg = Path.Combine(repo, "ffmpeg", "bin", "ffmpeg.exe");
         var ffprobe = Path.Combine(repo, "ffmpeg", "bin", "ffprobe.exe"); Assert.True(File.Exists(ffmpeg)); Assert.True(File.Exists(ffprobe));
-        var root = Path.Combine(repo, "artifacts", "0.20.1-beta", "acceptance", "media-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss")); Directory.CreateDirectory(root);
+        var root = Path.Combine(repo, "artifacts", AravalsStream.Core.Versioning.AppVersion.Version, "acceptance", "media-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss")); Directory.CreateDirectory(root);
         using var rsa = RSA.Create(2048); var signing = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         var relayUrl = "http://127.0.0.1:" + FreePort(); var rtmpUrl = "rtmp://127.0.0.1:" + FreePort() + "/live";
         var relayState = Path.Combine(root, "relay-state.json"); var relayDll = Path.Combine(AppContext.BaseDirectory, "AravalsStream.Relay.dll");
@@ -86,7 +86,7 @@ public sealed class Phase20BMediaContinuityTests(ITestOutputHelper output)
             var secrets = new DpapiSecretStorage(Path.Combine(root, "client", "secrets")); secrets.Set("relay-refresh", refresh);
             var registry = new PairedDeviceRegistry(secrets, Path.Combine(root, "client", "paired.json")); var deviceId = Guid.NewGuid();
             await registry.SaveAsync(new PairedRemoteDevice(deviceId, "Local acceptance sender", "127.0.0.1", 45999, 1,
-                "0.20.1-beta", "test-only", "srt-test", DateTimeOffset.UtcNow), srtSecret);
+                AravalsStream.Core.Versioning.AppVersion.Version, "test-only", "srt-test", DateTimeOffset.UtcNow), srtSecret);
             var resource = new CaptureResource { Type = SourceType.RemotePc, RemoteDeviceId = deviceId.ToString(), RemoteHost = "127.0.0.1",
                 FormatWidth = 640, FormatHeight = 360, FormatFrameRate = 15, RemoteLatencyMs = 250, Name = "Local encrypted SRT fixture" };
             var scene = new Scene { Name = "Relay outage acceptance" }; var source = new SceneSource { Type = SourceType.RemotePc, SourceReference = resource.Id, Name = resource.Name };
@@ -191,7 +191,7 @@ public sealed class Phase20BMediaContinuityTests(ITestOutputHelper output)
                 var types = recorded.RootElement.GetProperty("streams").EnumerateArray().Select(s => s.GetProperty("codec_type").GetString()).ToArray();
                 Assert.Contains("video", types); Assert.Contains("audio", types);
             }
-            var report = new { version = "0.20.1-beta", mediaPid, recordPid, receiverPid = receiver.Id, streamReconnects = stream.ReconnectCount,
+            var report = new { version = AravalsStream.Core.Versioning.AppVersion.Version, mediaPid, recordPid, receiverPid = receiver.Id, streamReconnects = stream.ReconnectCount,
                 stages = windows.Select(w => new { w.Name, w.Start, w.End, w.Video, w.Audio }), receivedStages,
                 postRecoveryUnifiedEvents = count, postRecoveryAlerts = alertCount, result = "PASS" };
             await File.WriteAllTextAsync(Path.Combine(root, "results.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));

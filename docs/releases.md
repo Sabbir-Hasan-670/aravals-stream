@@ -1,16 +1,16 @@
-# One-run Windows, Linux and macOS releases
+# One-run release packaging
 
-Open [Build & Release — Windows, Linux, macOS](https://github.com/Sabbir-Hasan-670/aravals-stream/actions/workflows/release.yml) in GitHub Actions and choose **Run workflow**.
+Open Build & Release — Windows, Linux, macOS in GitHub Actions and choose Run workflow.
 
-1. Enter a new semantic version, for example `0.20.1-port.2`. The first combined release, `0.20.1-port.1`, has already been published.
-2. Keep the source ref `main`, or use a reviewed commit containing all projects and release scripts. Source workflow files must match the default branch so GitHub's workflow token can publish the release.
-3. Run once. Windows, Linux x64, Mac Intel and Mac Apple Silicon build on their native GitHub runners in parallel.
-4. After every build/test/package succeeds, one GitHub Release is published with five application packages, checksums, build information and automatic change notes.
+1. Enter a new semantic version, for example `1.0.0`, and choose stable or development.
+2. Use reviewed source on `main`. Workflow files must match the default branch so GitHub's workflow token can publish the release.
+3. One run freezes a source commit, tests/builds on Windows, Linux x64, Mac Intel and Mac Apple Silicon, and packages the Linux Relay.
+4. After all jobs succeed, downloads, checksums, build information and automatic change notes publish in one GitHub Release.
 
-Windows supplies the full existing workstation installer and Remote Capture Agent. Linux/macOS supply development desktop packages, clearly labeled in their filenames and release notes. Until full portable acceptance is complete, the combined release is always a prerelease.
+Stable releases require a version without a suffix and publish Windows Desktop and Agent installers plus Linux event Relay. They set `prerelease: false` and GitHub latest status. Incomplete Linux/macOS desktop packages are excluded. See [1.0.0 supported scope and limits](stable-1.0.0.md).
 
-All projects/installers use the requested version in a temporary runner checkout. The workflow freezes a single source commit for every platform. No local compiler, GitHub personal token or separate manual release upload is required: the final release job uses GitHub's scoped workflow token with `contents: write`; build jobs use read access.
+Development releases include portable desktop packages and remain prereleases. Linux/macOS require FFmpeg and native permissions; full workstation parity, Wayland capture, macOS system audio and Mac signing/notarization remain incomplete.
 
-A failed platform build prevents public publication. Uploads are assembled in a draft and verified before publication. A failed upload can be retried for that same source commit while the draft remains unpublished. A published version is never overwritten; use a new version for the next release.
+All components/installers use the requested version. Builds and publishes treat warnings as errors. A failed job prevents publication; uploads are assembled and checked in a draft. An unpublished draft can be retried for the same source commit. Published versions are never overwritten.
 
-Linux/macOS packages include the .NET desktop runtime, but require separately installed FFmpeg and native desktop permissions. macOS signing/notarization, Wayland capture and remaining full workstation parity are tracked in [port status](cross-platform-port.md).
+Release packaging does not deploy websites, Relay servers or infrastructure. The website consumes GitHub latest stable metadata when its prepared source is separately deployed.

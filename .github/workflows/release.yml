@@ -3,10 +3,16 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'New release version (example: 0.20.1-port.1)'
+        description: 'New release version (example: 1.0.0)'
         required: true
-        default: '0.20.1-port.1'
+        default: '1.0.0'
         type: string
+      channel:
+        description: 'Stable Windows/Relay release or portable development release'
+        required: true
+        default: 'stable'
+        type: choice
+        options: [stable, development]
       source_ref:
         description: 'Source branch, tag or commit to build'
         required: true
@@ -32,11 +38,13 @@ jobs:
         shell: pwsh
         env:
           RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_CHANNEL: ${{ inputs.channel }}
           GH_TOKEN: ${{ github.token }}
           RELEASE_REPO: ${{ github.repository }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           ./scripts/set-release-version.ps1 -Version $env:RELEASE_VERSION
+          if ($env:RELEASE_CHANNEL -eq 'stable' -and $env:RELEASE_VERSION.Contains('-')) { throw 'Stable releases require a version without a suffix.' }
           git fetch origin $env:DEFAULT_BRANCH
           if ($LASTEXITCODE -ne 0) { throw 'Could not verify the default branch.' }
           git diff --quiet FETCH_HEAD HEAD -- .github/workflows
@@ -72,7 +80,7 @@ jobs:
       - name: Build and test Windows workstation
         shell: pwsh
         run: |
-          dotnet build AravalsStream.sln -c Release
+          dotnet build AravalsStream.sln -c Release -warnaserror
           if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
           dotnet test AravalsStream.sln -c Release --no-build --logger trx --results-directory artifacts/tests
           if ($LASTEXITCODE -ne 0) { throw 'Tests failed.' }
@@ -123,9 +131,9 @@ jobs:
         if: runner.os == 'macOS'
         run: command -v ffmpeg || brew install ffmpeg
       - name: Test portable media and native contracts
-        run: dotnet test tests/AravalsStream.PlatformTests/AravalsStream.PlatformTests.csproj -c Release --logger trx
+        run: dotnet test tests/AravalsStream.PlatformTests/AravalsStream.PlatformTests.csproj -c Release -warnaserror --logger trx
       - name: Publish desktop
-        run: dotnet publish src/AravalsStream.Desktop/AravalsStream.Desktop.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o artifacts/desktop
+        run: dotnet publish src/AravalsStream.Desktop/AravalsStream.Desktop.csproj -c Release -warnaserror -r ${{ matrix.rid }} --self-contained true -o artifacts/desktop
       - name: Package desktop
         shell: pwsh
         env:
@@ -137,8 +145,35 @@ jobs:
           name: release-${{ matrix.rid }}
           path: artifacts/packages/*.tar.gz
           if-no-files-found: error
+  relay:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Build Relay package without deployment
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          ./scripts/set-release-version.ps1 -Version $env:RELEASE_VERSION
+          dotnet publish src/AravalsStream.Relay/AravalsStream.Relay.csproj -c Release -r linux-x64 --self-contained true -warnaserror -o artifacts/relay
+          if ($LASTEXITCODE -ne 0) { throw 'Relay publish failed.' }
+          chmod +x artifacts/relay/AravalsStream.Relay
+          New-Item -ItemType Directory artifacts/packages -Force | Out-Null
+          tar -czf "artifacts/packages/AravalsStream-Relay-$env:RELEASE_VERSION-linux-x64.tar.gz" -C artifacts/relay .
+          if ($LASTEXITCODE -ne 0) { throw 'Relay package failed.' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-relay
+          path: artifacts/packages/*.tar.gz
+          if-no-files-found: error
   release:
-    needs: [prepare, windows, portable]
+    needs: [prepare, windows, portable, relay]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -158,4 +193,5 @@ jobs:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
           BUILD_COMMIT: ${{ needs.prepare.outputs.commit }}
           RELEASE_REPO: ${{ github.repository }}
-        run: ./scripts/publish-release.ps1 -Version $env:RELEASE_VERSION -Commit $env:BUILD_COMMIT -Repository $env:RELEASE_REPO -PackageDirectory artifacts/release
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+        run: ./scripts/publish-release.ps1 -Version $env:RELEASE_VERSION -Commit $env:BUILD_COMMIT -Repository $env:RELEASE_REPO -PackageDirectory artifacts/release -Channel $env:RELEASE_CHANNEL
