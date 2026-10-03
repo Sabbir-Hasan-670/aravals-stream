@@ -297,7 +297,12 @@ public class Phase10Tests
     [Fact]
     public void AppVersion_ProvidesAuthoritativeVersion()
     {
-        Assert.Equal("0.20.1-beta", AppVersion.Version);
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Directory.Build.props"))) directory = directory.Parent;
+        Assert.NotNull(directory);
+        var props = System.Xml.Linq.XDocument.Load(Path.Combine(directory.FullName, "Directory.Build.props"));
+        var expected = props.Descendants("Version").Single().Value;
+        Assert.Equal(expected, AppVersion.Version);
         Assert.Contains("Aravals Stream", AppVersion.FullVersionString);
     }
 

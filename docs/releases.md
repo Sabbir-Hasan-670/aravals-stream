@@ -3,7 +3,7 @@
 Open [Build & Release — Windows, Linux, macOS](https://github.com/Sabbir-Hasan-670/aravals-stream/actions/workflows/release.yml) in GitHub Actions and choose **Run workflow**.
 
 1. Enter a new semantic version, for example `0.20.1-port.1`.
-2. Keep the source ref `codex/portable-desktop` while the portable migration is in development, or use a specific reviewed commit/tag containing all projects and release scripts.
+2. Keep the source ref `main`, or use a reviewed commit containing all projects and release scripts. Source workflow files must match the default branch so GitHub's workflow token can publish the release.
 3. Run once. Windows, Linux x64, Mac Intel and Mac Apple Silicon build on their native GitHub runners in parallel.
 4. After every build/test/package succeeds, one GitHub Release is published with five application packages, checksums, build information and automatic change notes.
 
