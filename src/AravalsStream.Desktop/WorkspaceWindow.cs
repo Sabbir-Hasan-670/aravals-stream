@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using AravalsStream.Core.Models;
 using System.Globalization;
 using AravalsStream.Core.Interfaces;
+using Avalonia.Controls.Templates;
 
 namespace AravalsStream.Desktop;
 
@@ -16,12 +17,16 @@ public sealed class WorkspaceWindow : Window
 {
     private readonly ComboBox _source = new() { ItemsSource = new[] { "Display", "Camera", "Image", "Video", "Test pattern" }, SelectedIndex = 0 };
     private readonly TextBox _device = new();
+    private readonly ComboBox _devices = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _microphones = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _monitors = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
+    private IReadOnlyList<CaptureDevice> _discovered = [];
     private readonly TextBox _ffmpeg = new() { Watermark = "FFmpeg executable path" };
     private readonly TextBox _microphone = new() { Watermark = "Microphone device name/index (optional)" };
     private readonly TextBox _desktopAudio = new() { Watermark = "PulseAudio monitor source (Linux only)" };
     private readonly ComboBox _canvas = new() { ItemsSource = new[] { "Horizontal · 1920×1080", "Vertical · 1080×1920" }, SelectedIndex = 0 };
     private readonly TextBox _server = new() { Watermark = "rtmps://server/application" };
-    private readonly TextBox _key = new() { Watermark = "Stream key (kept in memory only)", PasswordChar = '●' };
+    private readonly TextBox _key = new() { Watermark = "Stream key", PasswordChar = '●' };
     private readonly ComboBox _destinations = new();
     private readonly TextBox _destinationName = new() { Watermark = "Destination name", Text = "Custom RTMP" };
     private readonly ISecretStorage _secrets = PlatformSecretStorage.Create();
@@ -64,6 +69,7 @@ public sealed class WorkspaceWindow : Window
         tools.Children.Add(Button("Add scene", AddScene)); tools.Children.Add(Button("Rename scene", RenameScene));
         AddField(tools, "SOURCES", _layers);
         AddField(tools, "VIDEO SOURCE", _source); AddField(tools, "Device name/index or file path", _device);
+        tools.Children.Add(_devices); tools.Children.Add(Button("Refresh capture devices", RefreshDevices));
         tools.Children.Add(Button("Add source to scene", AddSource)); tools.Children.Add(Button("Remove selected source", RemoveSource));
         AddField(tools, "CANVAS", _canvas);
         var geometry = new Grid { ColumnDefinitions = new("*,*"), RowDefinitions = new("Auto,Auto,Auto"), ColumnSpacing = 8, RowSpacing = 8 };
@@ -71,7 +77,8 @@ public sealed class WorkspaceWindow : Window
         AddGeometry(geometry, "Width", _width, 0, 1); AddGeometry(geometry, "Height", _height, 1, 1);
         AddGeometry(geometry, "Opacity · 0–1", _opacity, 0, 2); AddGeometry(geometry, "Rotation", _rotation, 1, 2);
         tools.Children.Add(geometry); tools.Children.Add(_visible); tools.Children.Add(Button("Apply source transform", ApplyTransform));
-        AddField(tools, "MICROPHONE", _microphone); AddField(tools, "DESKTOP AUDIO", _desktopAudio);
+        AddField(tools, "MICROPHONE", _microphones); tools.Children.Add(_microphone);
+        AddField(tools, "DESKTOP AUDIO", _monitors); tools.Children.Add(_desktopAudio);
         AddField(tools, "FFMPEG", _ffmpeg); AddField(tools, "DESTINATIONS", _destinations); tools.Children.Add(_destinationName);
         AddField(tools, "STREAM SERVER", _server); tools.Children.Add(_key); tools.Children.Add(Button("Save destination securely", SaveDestination));
         var preview = Button("Start preview", TogglePreview); var stream = Button("Start / stop stream", ToggleStream);
@@ -89,12 +96,23 @@ public sealed class WorkspaceWindow : Window
             else if (_preview?.HasExited == true) _status.Text = "Preview capture stopped. Check the selected device and native capture permissions.";
         };
         _timer.Start();
+        _destinations.ItemTemplate = new FuncDataTemplate<Destination>((destination, _) => new TextBlock { Text = destination?.Name ?? "" });
+        _source.SelectionChanged += (_, _) => RefreshVideoDevices();
+        _devices.SelectionChanged += (_, _) => { if (_devices.SelectedItem is CaptureDevice device) _device.Text = device.Identifier; };
+        _microphones.SelectionChanged += (_, _) => { if (_microphones.SelectedItem is CaptureDevice device) _microphone.Text = device.Identifier; };
+        _monitors.SelectionChanged += (_, _) => { if (_monitors.SelectedItem is CaptureDevice device) _desktopAudio.Text = device.Identifier; };
         RefreshScenes();
         _scenes.SelectionChanged += async (_, _) =>
         {
-            if (_refreshing) return;
+            if (_refreshing || _loading || _busy || _closing) return;
             if (_stream is not null || _record is not null) { _status.Text = "Stop outputs before switching scenes in this development workspace."; RefreshScenes(); return; }
-            if (_scenes.SelectedItem is NativeScene scene) { _workspace.SelectedSceneId = scene.Id; RefreshLayers(); await SaveWorkspace(); await RestartPreview(); }
+            if (_scenes.SelectedItem is NativeScene scene)
+            {
+                _busy = true;
+                try { _workspace.SelectedSceneId = scene.Id; RefreshLayers(); await SaveWorkspace(); await RestartPreview(); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception) { _status.Text = "Scene could not be saved or its preview restarted. Check profile access and capture permissions."; }
+                finally { _busy = false; }
+            }
         };
         _layers.SelectionChanged += (_, _) => LoadTransform();
         _canvas.SelectionChanged += (_, _) => LoadTransform();
@@ -125,7 +143,7 @@ public sealed class WorkspaceWindow : Window
             if (_busy) return;
             _busy = true; button.IsEnabled = false;
             try { await action(); }
-            catch (Exception ex) when (ex is ArgumentException or IOException or PlatformNotSupportedException or System.ComponentModel.Win32Exception or InvalidOperationException)
+            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or PlatformNotSupportedException or System.ComponentModel.Win32Exception or InvalidOperationException or System.Text.Json.JsonException)
             { _status.Text = ex is System.ComponentModel.Win32Exception ? "FFmpeg could not start. Verify its executable path." : ex.Message; }
             finally { _busy = false; button.IsEnabled = true; }
         };
@@ -145,6 +163,20 @@ public sealed class WorkspaceWindow : Window
     private void RefreshLayers()
     { var selected = _layers.SelectedItem as NativeSceneSource; _layers.ItemsSource = Scene.Sources.ToArray(); _layers.SelectedItem = selected is not null && Scene.Sources.Contains(selected) ? selected : Scene.Sources.FirstOrDefault(); }
     private Task SaveWorkspace() => _workspaceWritable ? _workspace.SaveAsync(_workspacePath) : throw new IOException("Saved workspace could not be loaded. These edits cannot be saved without replacing that file.");
+    private async Task RefreshDevices()
+    {
+        _discovered = await DeviceDiscovery.DiscoverAsync(_ffmpeg.Text ?? "", PlatformCapture.Current);
+        RefreshVideoDevices();
+        _microphones.ItemsSource = _discovered.Where(d => d.Kind == CaptureKind.Microphone).ToArray();
+        _monitors.ItemsSource = _discovered.Where(d => d.Kind == CaptureKind.DesktopAudio).ToArray();
+        _status.Text = $"Found {_discovered.Count} capture devices. Select a device to use it; refresh after connecting hardware.";
+    }
+    private void RefreshVideoDevices()
+    {
+        var kind = _source.SelectedIndex == 0 ? CaptureKind.Display : _source.SelectedIndex == 1 ? CaptureKind.Camera : (CaptureKind?)null;
+        _devices.ItemsSource = _discovered.Where(d => d.Kind == kind).ToArray();
+        _devices.IsVisible = kind is not null;
+    }
     private void RefreshDestinations(Destination? selected = null)
     { _destinations.ItemsSource = _workspace.Destinations.ToArray(); _destinations.SelectedItem = selected ?? _workspace.Destinations.FirstOrDefault(); }
     private async Task SaveDestination()
@@ -166,14 +198,14 @@ public sealed class WorkspaceWindow : Window
         await SaveWorkspace(); _key.Text = ""; RefreshDestinations(destination); _status.Text = "Destination saved; its stream key is protected by the operating system credential store.";
     }
     private void RequireEditable()
-    { if (_loading) throw new InvalidOperationException("Scene workspace is loading."); if (_stream is not null || _record is not null) throw new InvalidOperationException("Stop outputs before editing scenes in this development workspace."); }
+    { if (_loading) throw new InvalidOperationException("Scene workspace is loading."); if (!_workspaceWritable) throw new IOException("Saved workspace could not be loaded. Resolve profile access before saving changes."); if (_stream is not null || _record is not null) throw new InvalidOperationException("Stop outputs before editing scenes in this development workspace."); }
     private async Task AddScene()
     {
         RequireEditable(); var scene = new NativeScene { Name = string.IsNullOrWhiteSpace(_sceneName.Text) ? "Scene " + (_workspace.Scenes.Count + 1) : _sceneName.Text.Trim() };
         _workspace.Scenes.Add(scene); _workspace.SelectedSceneId = scene.Id; RefreshScenes(); await SaveWorkspace(); await RestartPreview();
     }
     private async Task RenameScene()
-    { if (string.IsNullOrWhiteSpace(_sceneName.Text)) throw new ArgumentException("Enter a scene name."); Scene.Name = _sceneName.Text.Trim(); RefreshScenes(); await SaveWorkspace(); }
+    { RequireEditable(); if (string.IsNullOrWhiteSpace(_sceneName.Text)) throw new ArgumentException("Enter a scene name."); Scene.Name = _sceneName.Text.Trim(); RefreshScenes(); await SaveWorkspace(); }
     private async Task AddSource()
     {
         RequireEditable(); var input = Input(); PlatformCapture.Arguments(PlatformCapture.Current, input, 30);

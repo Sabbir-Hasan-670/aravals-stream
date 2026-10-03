@@ -4,6 +4,19 @@ using Xunit;
 namespace AravalsStream.PlatformTests;
 public sealed class SceneWorkspaceTests
 {
+    [Theory]
+    [InlineData("null")]
+    [InlineData("[null]")]
+    public async Task InvalidDestinationsAreRejectedBeforeUiLoads(string destinations)
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        try
+        {
+            await File.WriteAllTextAsync(path, "{\"Schema\":1,\"Scenes\":[{\"Name\":\"Scene\"}],\"Destinations\":" + destinations + "}");
+            await Assert.ThrowsAsync<InvalidDataException>(() => SceneWorkspace.LoadAsync(path));
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
     [Fact]
     public async Task RoundTripPreservesIndependentCanvasTransformsAndVisibility()
     {

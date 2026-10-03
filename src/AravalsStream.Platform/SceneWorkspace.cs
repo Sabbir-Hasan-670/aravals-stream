@@ -52,7 +52,9 @@ public sealed class SceneWorkspace
         var result = JsonSerializer.Deserialize<SceneWorkspace>(await File.ReadAllTextAsync(path, ct), Json) ?? throw new InvalidDataException("Invalid scene workspace.");
         if (result.Schema != 1 || result.Scenes is null || result.Scenes.Count == 0 || result.Scenes.Count > 100 ||
             result.Scenes.Any(s => s is null || s.Sources is null || s.Sources.Count > 100 || s.Sources.Any(source => source is null || source.Input is null || source.Horizontal is null || source.Vertical is null)) ||
-            result.Scenes.Select(s => s.Id).Distinct().Count() != result.Scenes.Count)
+            result.Scenes.Select(s => s.Id).Distinct().Count() != result.Scenes.Count ||
+            result.Destinations is null || result.Destinations.Count > 100 || result.Destinations.Any(d => d is null) ||
+            result.Destinations.Select(d => d.Id).Distinct().Count() != result.Destinations.Count)
             throw new InvalidDataException("Unsupported or invalid scene workspace.");
         if (!result.Scenes.Any(s => s.Id == result.SelectedSceneId)) result.SelectedSceneId = result.Scenes[0].Id;
         return result;

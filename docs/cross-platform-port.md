@@ -28,11 +28,11 @@ Native command planning covers Windows GDI/DirectShow, Linux X11/V4L2/PulseAudio
 | Windows loopback audio | Existing Windows app supports it; portable native bridge pending |
 | macOS system audio/window capture | ScreenCaptureKit adapter and permissions pending |
 | Linux Wayland screen/window capture | ScreenCast portal/PipeWire adapter pending; never silently substitute X11 |
-| Native device enumeration and hotplug recovery | Pending portable UI integration |
+| Native device enumeration and hotplug recovery | Refreshable Windows DirectShow, macOS AVFoundation, Linux kernel video/PulseAudio device pickers implemented; automatic hotplug recovery and native acceptance pending |
 | Independent multistream destinations/reconnect/adaptive bitrate | Existing Windows behavior; portable migration pending |
 | Camera/capture device/game capture | Backend planning exists for camera; native discovery and supported game/window capture pending |
 | Media monitoring, routing, meters and sync | Shared mixer exists; native capture and portable UI integration pending |
-| Persistent credentials | Windows DPAPI, macOS Security.framework Keychain and Linux Secret Service adapters wired to saved destinations; native vault acceptance pending |
+| Persistent credentials | Windows DPAPI, macOS Security.framework Keychain and Linux Secret Service adapters wired to saved destinations; macOS Intel/Apple Silicon Keychain round-trip tests passed in CI; Linux desktop keyring acceptance pending |
 | OAuth/provider controls, chat, alerts and Relay UI | Existing Core integration retained; portable view/controller migration pending |
 | Remote PC pairing/capture and cross-platform Agent | Original Windows implementation retained; native port pending |
 | Hotkeys, tray/recovery, accessibility | Portable integration pending |
