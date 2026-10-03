@@ -25,7 +25,7 @@ Native command planning covers Windows GDI/DirectShow, Linux X11/V4L2/PulseAudio
 | Linux/macOS UI shell, preview and encoder | Development implementation; native acceptance pending |
 | Multiple scenes/sources and transforms | Portable scene persistence, sources, visibility, canvas-specific geometry/opacity/rotation and FFmpeg composition implemented; native and advanced-transform acceptance pending |
 | Live scene switching | Shared continuous capture/compositor migration pending; development UI requires stopping outputs before edits |
-| Windows loopback audio | Existing Windows app supports it; portable native bridge pending |
+| Windows loopback audio | Portable WASAPI bridge feeds 48 kHz stereo PCM through a user-restricted local pipe; native H.264/AAC recording and shutdown acceptance passed; audible playback and device-removal recovery remain |
 | macOS system audio/window capture | ScreenCaptureKit adapter and permissions pending |
 | Linux Wayland screen/window capture | ScreenCast portal/PipeWire adapter pending; never silently substitute X11 |
 | Native device enumeration and hotplug recovery | Refreshable Windows DirectShow, macOS AVFoundation, Linux kernel video/PulseAudio device pickers implemented; automatic hotplug recovery and native acceptance pending |

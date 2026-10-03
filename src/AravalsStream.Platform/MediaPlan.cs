@@ -93,12 +93,12 @@ public static class MediaArguments
         if (plan.Canvas.Width is < 16 or > 7680 || plan.Canvas.Height is < 16 or > 7680 || plan.Canvas.Width % 2 != 0 || plan.Canvas.Height % 2 != 0)
             throw new ArgumentException("Canvas dimensions must be even and between 16 and 7680 pixels.");
         if (plan.VideoBitrateKbps is < 100 or > 100000 || plan.AudioBitrateKbps is < 32 or > 512) throw new ArgumentException("Invalid encoding bitrate.");
-        if (plan.Video.Kind is CaptureKind.Microphone or CaptureKind.DesktopAudio or CaptureKind.TestAudio) throw new ArgumentException("A video source is required.");
-        if (plan.Audio.Any(a => a.Kind is not (CaptureKind.Microphone or CaptureKind.DesktopAudio or CaptureKind.TestAudio))) throw new ArgumentException("Audio inputs must be audio sources.");
+        if (plan.Video.Kind is CaptureKind.Microphone or CaptureKind.DesktopAudio or CaptureKind.TestAudio or CaptureKind.PcmAudio) throw new ArgumentException("A video source is required.");
+        if (plan.Audio.Any(a => a.Kind is not (CaptureKind.Microphone or CaptureKind.DesktopAudio or CaptureKind.TestAudio or CaptureKind.PcmAudio))) throw new ArgumentException("Audio inputs must be audio sources.");
         foreach (var layer in plan.Layers)
         {
             var t = layer.Transform;
-            if (layer.Input.Kind is CaptureKind.Microphone or CaptureKind.DesktopAudio or CaptureKind.TestAudio) throw new ArgumentException("Scene layers must contain video.");
+            if (layer.Input.Kind is CaptureKind.Microphone or CaptureKind.DesktopAudio or CaptureKind.TestAudio or CaptureKind.PcmAudio) throw new ArgumentException("Scene layers must contain video.");
             if (new[] { t.X, t.Y, t.Width, t.Height, t.ScaleX, t.ScaleY, t.Rotation, t.Opacity, t.CropLeft, t.CropTop, t.CropRight, t.CropBottom }.Any(v => !double.IsFinite(v)) ||
                 t.Width <= 0 || t.Height <= 0 || t.ScaleX <= 0 || t.ScaleY <= 0 || Math.Abs(t.X) > 32768 || Math.Abs(t.Y) > 32768 ||
                 t.Width * t.ScaleX is < 1 or > 16384 || t.Height * t.ScaleY is < 1 or > 16384 || t.Opacity is < 0 or > 1 || Math.Abs(t.Rotation) > 360 ||

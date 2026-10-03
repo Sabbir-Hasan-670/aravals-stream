@@ -3,7 +3,7 @@ using System.Globalization;
 namespace AravalsStream.Platform;
 
 public enum DesktopPlatform { Windows, LinuxX11, LinuxWayland, MacOS }
-public enum CaptureKind { Display, Camera, Image, Video, Microphone, DesktopAudio, TestVideo, TestAudio }
+public enum CaptureKind { Display, Camera, Image, Video, Microphone, DesktopAudio, TestVideo, TestAudio, PcmAudio }
 public sealed record CaptureInput(CaptureKind Kind, string Device, float Gain = 1, bool Muted = false);
 
 public static class PlatformCapture
@@ -24,6 +24,8 @@ public static class PlatformCapture
         if (device.Contains('\0')) throw new ArgumentException("Invalid capture device.");
         return input.Kind switch
         {
+            CaptureKind.PcmAudio when platform == DesktopPlatform.Windows && device.StartsWith(@"\\.\pipe\AravalsStream-audio-", StringComparison.Ordinal) =>
+                ["-thread_queue_size", "256", "-probesize", "32", "-analyzeduration", "0", "-f", "f32le", "-ar", "48000", "-ac", "2", "-i", device],
             CaptureKind.TestVideo => ["-re", "-f", "lavfi", "-i", $"testsrc2=size=640x360:rate={rate}"],
             CaptureKind.TestAudio => ["-re", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000"],
             CaptureKind.Image => ["-loop", "1", "-framerate", rate, "-i", Path.GetFullPath(device)],

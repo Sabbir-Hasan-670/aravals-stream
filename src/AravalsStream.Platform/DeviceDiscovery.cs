@@ -17,7 +17,10 @@ public static partial class DeviceDiscovery
         if (platform == DesktopPlatform.Windows)
         {
             var listing = await Run(ffmpeg, ["-hide_banner", "-list_devices", "true", "-f", "dshow", "-i", "dummy"], ct);
-            return new[] { new CaptureDevice(CaptureKind.Display, "desktop", "Entire desktop") }.Concat(ParseDirectShow(listing)).ToArray();
+            var windowsDevices = new List<CaptureDevice> { new(CaptureKind.Display, "desktop", "Entire desktop") };
+            windowsDevices.AddRange(ParseDirectShow(listing));
+            if (OperatingSystem.IsWindows()) windowsDevices.AddRange(WindowsLoopback.Enumerate());
+            return windowsDevices;
         }
         if (platform == DesktopPlatform.MacOS)
             return ParseAvFoundation(await Run(ffmpeg, ["-hide_banner", "-f", "avfoundation", "-list_devices", "true", "-i", ""], ct));

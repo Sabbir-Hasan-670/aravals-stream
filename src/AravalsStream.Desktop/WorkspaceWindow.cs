@@ -23,7 +23,7 @@ public sealed class WorkspaceWindow : Window
     private IReadOnlyList<CaptureDevice> _discovered = [];
     private readonly TextBox _ffmpeg = new() { Watermark = "FFmpeg executable path" };
     private readonly TextBox _microphone = new() { Watermark = "Microphone device name/index (optional)" };
-    private readonly TextBox _desktopAudio = new() { Watermark = "PulseAudio monitor source (Linux only)" };
+    private readonly TextBox _desktopAudio = new() { Watermark = "Speaker/monitor device (optional)" };
     private readonly ComboBox _canvas = new() { ItemsSource = new[] { "Horizontal · 1920×1080", "Vertical · 1080×1920" }, SelectedIndex = 0 };
     private readonly TextBox _server = new() { Watermark = "rtmps://server/application" };
     private readonly TextBox _key = new() { Watermark = "Stream key", PasswordChar = '●' };
@@ -43,8 +43,8 @@ public sealed class WorkspaceWindow : Window
     private bool _loading = true;
     private readonly Image _image = new() { Stretch = Stretch.Uniform };
     private FfmpegProcess? _preview;
-    private FfmpegProcess? _stream;
-    private FfmpegProcess? _record;
+    private MediaOutputSession? _stream;
+    private MediaOutputSession? _record;
     private CancellationTokenSource? _previewToken;
     private Task? _previewTask;
     private bool _busy;
@@ -86,13 +86,15 @@ public sealed class WorkspaceWindow : Window
         body.Children.Add(new ScrollViewer { Content = tools });
         var previewArea = new Grid { RowDefinitions = new("*,Auto"), RowSpacing = 12 }; Grid.SetColumn(previewArea, 1);
         previewArea.Children.Add(new Border { Background = Brushes.Black, CornerRadius = new CornerRadius(10), Child = _image });
-        var note = new TextBlock { Text = "Preview and outputs use actual FFmpeg capture. macOS display capture requires its enumerated screen device index and screen-recording permission. Wayland portal capture, native loopback and the remaining workstation features are still being ported.", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.LightGray };
+        var note = new TextBlock { Text = "Preview and outputs use actual FFmpeg capture. Windows speakers use WASAPI; Linux speaker monitors use PulseAudio. macOS display capture requires its enumerated screen device and screen-recording permission. Wayland capture, macOS system audio and remaining workstation features are still being ported.", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.LightGray };
         Grid.SetRow(note, 1); previewArea.Children.Add(note); body.Children.Add(previewArea); root.Children.Add(body);
         Grid.SetRow(_status, 2); root.Children.Add(_status); Content = root;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += (_, _) =>
         {
             if (_stream?.HasExited == true || _record?.HasExited == true) _status.Text = "An output stopped. Check source permissions and server/device availability.";
+            else if (_stream?.Error is { } streamError) _status.Text = streamError;
+            else if (_record?.Error is { } recordError) _status.Text = recordError;
             else if (_preview?.HasExited == true) _status.Text = "Preview capture stopped. Check the selected device and native capture permissions.";
         };
         _timer.Start();
@@ -140,11 +142,11 @@ public sealed class WorkspaceWindow : Window
         var button = new Button { Content = text, HorizontalAlignment = HorizontalAlignment.Stretch };
         button.Click += async (_, _) =>
         {
-            if (_busy) return;
+            if (_busy || _closing) return;
             _busy = true; button.IsEnabled = false;
             try { await action(); }
-            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or PlatformNotSupportedException or System.ComponentModel.Win32Exception or InvalidOperationException or System.Text.Json.JsonException)
-            { _status.Text = ex is System.ComponentModel.Win32Exception ? "FFmpeg could not start. Verify its executable path." : ex.Message; }
+            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or PlatformNotSupportedException or System.ComponentModel.Win32Exception or InvalidOperationException or System.Text.Json.JsonException or System.Runtime.InteropServices.COMException)
+            { _status.Text = ex is System.ComponentModel.Win32Exception ? "FFmpeg could not start. Verify its executable path." : ex is System.Runtime.InteropServices.COMException ? "The audio device could not open. Refresh devices and check speaker availability." : ex.Message; }
             finally { _busy = false; button.IsEnabled = true; }
         };
         return button;
@@ -258,7 +260,7 @@ public sealed class WorkspaceWindow : Window
         if (string.IsNullOrWhiteSpace(key) && _destinations.SelectedItem is Destination { StreamKeyReference: { } reference })
             key = await _secrets.GetAsync(reference) ?? throw new IOException("The saved stream key is unavailable. Unlock the credential store or enter a replacement key.");
         var url = (_server.Text ?? "").TrimEnd('/') + (string.IsNullOrWhiteSpace(key) ? "" : "/" + key);
-        _stream = new(_ffmpeg.Text ?? "", MediaArguments.Output(Plan(), url, false));
+        _stream = new(_ffmpeg.Text ?? "", Plan(), url, false);
         _status.Text = "Streaming process started; connection is being established.";
     }
     private async Task ToggleRecording()
@@ -268,7 +270,7 @@ public sealed class WorkspaceWindow : Window
         var path = Path.GetFullPath(_recordPath.Text);
         if (File.Exists(path)) throw new ArgumentException("Choose a new recording filename; existing recordings will not be overwritten.");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        _record = new(_ffmpeg.Text ?? "", MediaArguments.Output(Plan(), path, true)); _status.Text = "Recording process started";
+        _record = new(_ffmpeg.Text ?? "", Plan(), path, true); _status.Text = "Recording process started";
     }
     private async Task TogglePreview()
     {

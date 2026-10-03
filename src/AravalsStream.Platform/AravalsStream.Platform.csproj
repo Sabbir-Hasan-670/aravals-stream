@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>net8.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
   <ItemGroup><ProjectReference Include="../AravalsStream.Core/AravalsStream.Core.csproj" /></ItemGroup>
+  <ItemGroup><PackageReference Include="NAudio.Wasapi" Version="2.2.1" /></ItemGroup>
 </Project>
