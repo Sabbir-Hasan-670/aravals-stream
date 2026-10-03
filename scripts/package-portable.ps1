@@ -1,13 +1,20 @@
 param(
     [Parameter(Mandatory=$true)][string]$PublishDirectory,
     [Parameter(Mandatory=$true)][ValidateSet('win-x64','linux-x64','linux-arm64','osx-x64','osx-arm64')][string]$Runtime,
-    [Parameter(Mandatory=$true)][string]$OutputDirectory
+    [Parameter(Mandatory=$true)][string]$OutputDirectory,
+    [string]$Version = ''
 )
 $ErrorActionPreference = 'Stop'
 $publish = (Resolve-Path -LiteralPath $PublishDirectory).Path
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $output = (Resolve-Path -LiteralPath $OutputDirectory).Path
-$name = 'AravalsStream-Development-' + $Runtime
+if (-not $Version) {
+    [xml]$project = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../src/AravalsStream.Desktop/AravalsStream.Desktop.csproj')
+    $Version = [string]$project.Project.PropertyGroup.Version
+}
+if ($Version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$') { throw 'Invalid package version.' }
+$numericVersion = $Version.Split('-')[0]
+$name = 'AravalsStream-Development-' + $Version + '-' + $Runtime
 $stage = Join-Path $output $name
 if (Test-Path -LiteralPath $stage) { throw 'Package staging directory already exists; choose a fresh output directory.' }
 New-Item -ItemType Directory -Path $stage | Out-Null
@@ -16,7 +23,7 @@ if ($Runtime.StartsWith('osx-')) {
     $binary = Join-Path $contents 'MacOS'
     New-Item -ItemType Directory -Path $binary -Force | Out-Null
     Get-ChildItem -LiteralPath $publish -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $binary -Recurse }
-    @'
+    @"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -24,13 +31,13 @@ if ($Runtime.StartsWith('osx-')) {
 <key>CFBundleIdentifier</key><string>com.aravals.stream.development</string>
 <key>CFBundleName</key><string>Aravals Stream Development</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.20.1</string>
-<key>CFBundleVersion</key><string>0.20.1.1</string>
+<key>CFBundleShortVersionString</key><string>$numericVersion</string>
+<key>CFBundleVersion</key><string>$numericVersion</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSCameraUsageDescription</key><string>Capture the camera you choose for your stream.</string>
 <key>NSMicrophoneUsageDescription</key><string>Capture the microphone you choose for your stream.</string>
 </dict></plist>
-'@ | Set-Content -LiteralPath (Join-Path $contents 'Info.plist') -Encoding utf8
+"@ | Set-Content -LiteralPath (Join-Path $contents 'Info.plist') -Encoding utf8
     if (-not $IsMacOS) { throw 'macOS development bundles must be packaged and validated on a macOS runner.' }
     & chmod +x (Join-Path $binary 'AravalsStream.Desktop')
     & plutil -lint (Join-Path $contents 'Info.plist')
