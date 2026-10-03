@@ -5,6 +5,8 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using AravalsStream.Core.Models;
+using System.Globalization;
 
 namespace AravalsStream.Desktop;
 
@@ -21,6 +23,15 @@ public sealed class WorkspaceWindow : Window
     private readonly TextBox _key = new() { Watermark = "Stream key (kept in memory only)", PasswordChar = '●' };
     private readonly TextBox _recordPath = new() { Watermark = "Recording .mkv file path" };
     private readonly TextBlock _status = new() { Text = "Ready", TextWrapping = TextWrapping.Wrap };
+    private readonly ComboBox _scenes = new();
+    private readonly TextBox _sceneName = new() { Watermark = "Scene name" };
+    private readonly ListBox _layers = new() { Height = 100 };
+    private readonly TextBox _x = new() { Text = "0" }, _y = new() { Text = "0" }, _width = new() { Text = "1920" }, _height = new() { Text = "1080" }, _opacity = new() { Text = "1" }, _rotation = new() { Text = "0" };
+    private readonly CheckBox _visible = new() { Content = "Visible", IsChecked = true };
+    private SceneWorkspace _workspace = SceneWorkspace.Create();
+    private readonly string _workspacePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AravalsStream", "portable", "scenes.json");
+    private bool _refreshing;
+    private bool _loading = true;
     private readonly Image _image = new() { Stretch = Stretch.Uniform };
     private FfmpegProcess? _preview;
     private FfmpegProcess? _stream;
@@ -45,8 +56,18 @@ public sealed class WorkspaceWindow : Window
         root.Children.Add(heading);
         var body = new Grid { ColumnDefinitions = new("330,*"), ColumnSpacing = 22 }; Grid.SetRow(body, 1);
         var tools = new StackPanel { Spacing = 10 };
+        AddField(tools, "SCENES", _scenes); tools.Children.Add(_sceneName);
+        tools.Children.Add(Button("Add scene", AddScene)); tools.Children.Add(Button("Rename scene", RenameScene));
+        AddField(tools, "SOURCES", _layers);
         AddField(tools, "VIDEO SOURCE", _source); AddField(tools, "Device name/index or file path", _device);
-        AddField(tools, "CANVAS", _canvas); AddField(tools, "MICROPHONE", _microphone); AddField(tools, "DESKTOP AUDIO", _desktopAudio);
+        tools.Children.Add(Button("Add source to scene", AddSource)); tools.Children.Add(Button("Remove selected source", RemoveSource));
+        AddField(tools, "CANVAS", _canvas);
+        var geometry = new Grid { ColumnDefinitions = new("*,*"), RowDefinitions = new("Auto,Auto,Auto"), ColumnSpacing = 8, RowSpacing = 8 };
+        AddGeometry(geometry, "X", _x, 0, 0); AddGeometry(geometry, "Y", _y, 1, 0);
+        AddGeometry(geometry, "Width", _width, 0, 1); AddGeometry(geometry, "Height", _height, 1, 1);
+        AddGeometry(geometry, "Opacity · 0–1", _opacity, 0, 2); AddGeometry(geometry, "Rotation", _rotation, 1, 2);
+        tools.Children.Add(geometry); tools.Children.Add(_visible); tools.Children.Add(Button("Apply source transform", ApplyTransform));
+        AddField(tools, "MICROPHONE", _microphone); AddField(tools, "DESKTOP AUDIO", _desktopAudio);
         AddField(tools, "FFMPEG", _ffmpeg); AddField(tools, "STREAM SERVER", _server); tools.Children.Add(_key);
         var preview = Button("Start preview", TogglePreview); var stream = Button("Start / stop stream", ToggleStream);
         tools.Children.Add(preview); tools.Children.Add(stream); AddField(tools, "RECORDING", _recordPath); tools.Children.Add(Button("Start / stop recording", ToggleRecording));
@@ -57,8 +78,27 @@ public sealed class WorkspaceWindow : Window
         Grid.SetRow(note, 1); previewArea.Children.Add(note); body.Children.Add(previewArea); root.Children.Add(body);
         Grid.SetRow(_status, 2); root.Children.Add(_status); Content = root;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _timer.Tick += (_, _) => { if (_stream?.HasExited == true || _record?.HasExited == true) _status.Text = "An output stopped. Check source permissions and server/device availability."; };
+        _timer.Tick += (_, _) =>
+        {
+            if (_stream?.HasExited == true || _record?.HasExited == true) _status.Text = "An output stopped. Check source permissions and server/device availability.";
+            else if (_preview?.HasExited == true) _status.Text = "Preview capture stopped. Check the selected device and native capture permissions.";
+        };
         _timer.Start();
+        RefreshScenes();
+        _scenes.SelectionChanged += async (_, _) =>
+        {
+            if (_refreshing) return;
+            if (_stream is not null || _record is not null) { _status.Text = "Stop outputs before switching scenes in this development workspace."; RefreshScenes(); return; }
+            if (_scenes.SelectedItem is NativeScene scene) { _workspace.SelectedSceneId = scene.Id; RefreshLayers(); await SaveWorkspace(); await RestartPreview(); }
+        };
+        _layers.SelectionChanged += (_, _) => LoadTransform();
+        _canvas.SelectionChanged += (_, _) => LoadTransform();
+        Opened += async (_, _) =>
+        {
+            try { _workspace = await SceneWorkspace.LoadAsync(_workspacePath); RefreshScenes(); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { _status.Text = "Saved scene workspace could not be loaded; it will not be overwritten."; _workspaceWritable = false; }
+            finally { _loading = false; }
+        };
         Closing += async (_, args) =>
         {
             if (_closing) return;
@@ -85,14 +125,69 @@ public sealed class WorkspaceWindow : Window
 
     private static void AddField(StackPanel parent, string label, Control input)
     { parent.Children.Add(new TextBlock { Text = label, FontSize = 12, Foreground = Brushes.LightGray }); parent.Children.Add(input); }
+    private static void AddGeometry(Grid grid, string label, Control input, int column, int row)
+    { var stack = new StackPanel { Spacing = 4 }; AddField(stack, label, input); Grid.SetColumn(stack, column); Grid.SetRow(stack, row); grid.Children.Add(stack); }
+    private bool _workspaceWritable = true;
+    private NativeScene Scene => _workspace.Scenes.First(s => s.Id == _workspace.SelectedSceneId);
+    private void RefreshScenes()
+    {
+        _refreshing = true; _scenes.ItemsSource = _workspace.Scenes.ToArray(); _scenes.SelectedItem = Scene; _refreshing = false; RefreshLayers();
+    }
+    private void RefreshLayers()
+    { var selected = _layers.SelectedItem as NativeSceneSource; _layers.ItemsSource = Scene.Sources.ToArray(); _layers.SelectedItem = selected is not null && Scene.Sources.Contains(selected) ? selected : Scene.Sources.FirstOrDefault(); }
+    private Task SaveWorkspace() => _workspaceWritable ? _workspace.SaveAsync(_workspacePath) : throw new IOException("Saved workspace could not be loaded. These edits cannot be saved without replacing that file.");
+    private void RequireEditable()
+    { if (_loading) throw new InvalidOperationException("Scene workspace is loading."); if (_stream is not null || _record is not null) throw new InvalidOperationException("Stop outputs before editing scenes in this development workspace."); }
+    private async Task AddScene()
+    {
+        RequireEditable(); var scene = new NativeScene { Name = string.IsNullOrWhiteSpace(_sceneName.Text) ? "Scene " + (_workspace.Scenes.Count + 1) : _sceneName.Text.Trim() };
+        _workspace.Scenes.Add(scene); _workspace.SelectedSceneId = scene.Id; RefreshScenes(); await SaveWorkspace(); await RestartPreview();
+    }
+    private async Task RenameScene()
+    { if (string.IsNullOrWhiteSpace(_sceneName.Text)) throw new ArgumentException("Enter a scene name."); Scene.Name = _sceneName.Text.Trim(); RefreshScenes(); await SaveWorkspace(); }
+    private async Task AddSource()
+    {
+        RequireEditable(); var input = Input(); PlatformCapture.Arguments(PlatformCapture.Current, input, 30);
+        var first = Scene.Sources.Count == 0;
+        var source = new NativeSceneSource { Name = input.Kind + " " + (Scene.Sources.Count + 1), Input = input,
+            Horizontal = new() { Width = first ? 1920 : 640, Height = first ? 1080 : 360 },
+            Vertical = new() { Width = first ? 1080 : 640, Height = first ? 1920 : 360 } };
+        Scene.Sources.Add(source); RefreshLayers(); _layers.SelectedItem = source; await SaveWorkspace(); await RestartPreview();
+    }
+    private async Task RemoveSource()
+    { RequireEditable(); if (_layers.SelectedItem is NativeSceneSource source) { Scene.Sources.Remove(source); RefreshLayers(); await SaveWorkspace(); await RestartPreview(); } }
+    private SourceTransform? CurrentTransform => _layers.SelectedItem is NativeSceneSource source ? (_canvas.SelectedIndex == 1 ? source.Vertical : source.Horizontal) : null;
+    private void LoadTransform()
+    {
+        if (CurrentTransform is not { } t) return;
+        _x.Text = t.X.ToString(CultureInfo.InvariantCulture); _y.Text = t.Y.ToString(CultureInfo.InvariantCulture);
+        _width.Text = t.Width.ToString(CultureInfo.InvariantCulture); _height.Text = t.Height.ToString(CultureInfo.InvariantCulture);
+        _opacity.Text = t.Opacity.ToString(CultureInfo.InvariantCulture); _rotation.Text = t.Rotation.ToString(CultureInfo.InvariantCulture);
+        _visible.IsChecked = (_layers.SelectedItem as NativeSceneSource)?.Visible;
+    }
+    private async Task ApplyTransform()
+    {
+        RequireEditable(); if (CurrentTransform is not { } t) throw new ArgumentException("Choose a scene source.");
+        static double Number(TextBox box) => double.TryParse(box.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var n) && double.IsFinite(n) ? n : throw new ArgumentException("Enter valid numeric transform values.");
+        var next = t.Clone(); next.X = Number(_x); next.Y = Number(_y); next.Width = Number(_width); next.Height = Number(_height); next.Opacity = Number(_opacity); next.Rotation = Number(_rotation);
+        var source = (NativeSceneSource)_layers.SelectedItem!;
+        var validation = Plan() with { Layers = [new(source.Input, next)] }; MediaArguments.Preview(validation);
+        if (_canvas.SelectedIndex == 1) source.Vertical = next; else source.Horizontal = next;
+        source.Visible = _visible.IsChecked == true; RefreshLayers(); _layers.SelectedItem = source; await SaveWorkspace(); await RestartPreview();
+    }
+    private async Task RestartPreview() { if (_preview is not null) { await StopPreview(); await TogglePreview(); } }
+    private CaptureInput Input()
+    {
+        var kind = _source.SelectedIndex switch { 1 => CaptureKind.Camera, 2 => CaptureKind.Image, 3 => CaptureKind.Video, 4 => CaptureKind.TestVideo, _ => CaptureKind.Display };
+        return new(kind, _device.Text ?? "");
+    }
 
     private MediaPlan Plan()
     {
-        var kind = _source.SelectedIndex switch { 1 => CaptureKind.Camera, 2 => CaptureKind.Image, 3 => CaptureKind.Video, 4 => CaptureKind.TestVideo, _ => CaptureKind.Display };
         var audio = new List<CaptureInput>();
         if (!string.IsNullOrWhiteSpace(_microphone.Text)) audio.Add(new(CaptureKind.Microphone, _microphone.Text));
         if (!string.IsNullOrWhiteSpace(_desktopAudio.Text)) audio.Add(new(CaptureKind.DesktopAudio, _desktopAudio.Text));
-        return new(PlatformCapture.Current, new(kind, _device.Text ?? ""), audio, _canvas.SelectedIndex == 1 ? CanvasSize.Vertical : CanvasSize.Horizontal);
+        return _workspace.Plan(Scene, PlatformCapture.Current, _canvas.SelectedIndex == 1, audio);
     }
 
     private async Task ToggleStream()

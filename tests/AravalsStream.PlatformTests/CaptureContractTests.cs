@@ -1,5 +1,6 @@
 using AravalsStream.Platform;
 using Xunit;
+using AravalsStream.Core.Models;
 
 namespace AravalsStream.PlatformTests;
 public sealed class CaptureContractTests
@@ -48,5 +49,26 @@ public sealed class CaptureContractTests
     [Fact]
     public void VerticalOutputUsesPortraitDimensions() => Assert.Contains("scale=1080:1920", string.Join(' ',
         MediaArguments.Output(Plan() with { Canvas = CanvasSize.Vertical }, "rtmp://localhost/live/test", false)));
+    [Fact]
+    public void CompositionKeepsAudioIndicesAfterVideoInputs()
+    {
+        var plan = Plan() with { Layers = [new(new(CaptureKind.TestVideo, ""), new() { Width = 320, Height = 180, X = 50, Y = 30, Opacity = 0.5 })] };
+        var args = MediaArguments.Output(plan, "rtmp://localhost/live/test", false).ToArray();
+        var filter = args[Array.IndexOf(args, "-filter_complex") + 1];
+        Assert.Contains("[2:a:0]", filter); Assert.Contains("scale=320:180", filter); Assert.Contains("aa=0.5", filter);
+        Assert.Contains("overlay=x=50", filter); Assert.DoesNotContain("-vf", args);
+    }
+    [Fact]
+    public void HiddenSourcesAreNotOpened()
+    {
+        var plan = Plan() with { Layers = [new(new(CaptureKind.Camera, "private-camera"), new(), false)] };
+        var args = MediaArguments.Preview(plan); Assert.DoesNotContain("video=private-camera", args);
+    }
+    [Fact]
+    public void NonFiniteTransformFailsBeforeStarting()
+    {
+        var plan = Plan() with { Layers = [new(new(CaptureKind.TestVideo, ""), new SourceTransform { X = double.NaN })] };
+        Assert.Throws<ArgumentException>(() => MediaArguments.Preview(plan));
+    }
     private static MediaPlan Plan() => new(PlatformCapture.Current, new(CaptureKind.TestVideo, ""), [new(CaptureKind.TestAudio, "")], new(640, 360));
 }

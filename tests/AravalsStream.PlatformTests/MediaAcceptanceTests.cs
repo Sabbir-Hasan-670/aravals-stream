@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using AravalsStream.Platform;
 using Xunit;
+using AravalsStream.Core.Models;
 
 namespace AravalsStream.PlatformTests;
 public sealed class MediaAcceptanceTests
@@ -38,6 +39,18 @@ public sealed class MediaAcceptanceTests
             Assert.True(double.Parse(json.RootElement.GetProperty("format").GetProperty("duration").GetString()!, System.Globalization.CultureInfo.InvariantCulture) > 1);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
+    }
+    [Fact]
+    public async Task ActualSceneCompositorOutputsAFrameWithRotationAndOpacity()
+    {
+        var plan = new MediaPlan(PlatformCapture.Current, new(CaptureKind.TestVideo, ""), [], new(640, 360))
+        {
+            Layers = [new(new(CaptureKind.TestVideo, ""), new SourceTransform { Width = 320, Height = 180, X = 70, Y = 40, Opacity = 0.7, Rotation = 20 })]
+        };
+        await using var process = new FfmpegProcess(FindFfmpeg(), MediaArguments.Preview(plan));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var bytes = new byte[65536]; var count = await process.Video.ReadAsync(bytes, deadline.Token);
+        Assert.True(count > 100); Assert.Equal(0xff, bytes[0]); Assert.Equal(0xd8, bytes[1]);
     }
     private static string FindFfmpeg()
     {
