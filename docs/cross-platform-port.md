@@ -32,7 +32,7 @@ Native command planning covers Windows GDI/DirectShow, Linux X11/V4L2/PulseAudio
 | Independent multistream destinations/reconnect/adaptive bitrate | Existing Windows behavior; portable migration pending |
 | Camera/capture device/game capture | Backend planning exists for camera; native discovery and supported game/window capture pending |
 | Media monitoring, routing, meters and sync | Shared mixer exists; native capture and portable UI integration pending |
-| Persistent credentials | Windows DPAPI retained; macOS Keychain and Linux Secret Service bridges pending |
+| Persistent credentials | Windows DPAPI retained; macOS Security.framework Keychain and Linux Secret Service adapters implemented; native acceptance/UI integration pending |
 | OAuth/provider controls, chat, alerts and Relay UI | Existing Core integration retained; portable view/controller migration pending |
 | Remote PC pairing/capture and cross-platform Agent | Original Windows implementation retained; native port pending |
 | Hotkeys, tray/recovery, accessibility | Portable integration pending |
