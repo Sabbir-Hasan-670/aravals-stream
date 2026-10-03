@@ -1,0 +1,17 @@
+<Window x:Class="AravalsStream.App.Views.SourcePicker" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Add Source" Width="520" Height="600" MinWidth="440" MinHeight="500" WindowStartupLocation="CenterOwner" ResizeMode="CanResize">
+  <Grid Margin="20">
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <TextBlock Text="ADD SOURCE" Style="{StaticResource SectionTitle}"/>
+    <ListBox x:Name="TypeList" Grid.Row="1" DisplayMemberPath="Label" SelectionChanged="TypeList_SelectionChanged" Margin="0,12,0,8" Height="150"/>
+    <TextBlock x:Name="DeviceHelpText" Grid.Row="2" Text="Choose a device or window" Foreground="#9BA8B7" Margin="0,2,0,6"/>
+    <ListBox x:Name="DeviceList" Grid.Row="3" DisplayMemberPath="Label" SelectionChanged="DeviceList_SelectionChanged"/>
+    <StackPanel x:Name="CameraOptions" Grid.Row="4" Orientation="Horizontal" Visibility="Collapsed" Margin="0,10,0,0"><TextBlock x:Name="FormatLabel" Text="Camera format:" VerticalAlignment="Center"/><ComboBox x:Name="FormatList" Width="285" Margin="10,0,0,0"/></StackPanel>
+    <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+      <Button Content="Refresh" Click="Refresh_Click"/>
+      <Button Content="Cancel" Click="Cancel_Click"/>
+      <Button x:Name="AddButton" Content="Add Source" Click="Add_Click" IsEnabled="False" Style="{StaticResource PrimaryButton}"/>
+    </StackPanel>
+  </Grid>
+</Window>
+
+

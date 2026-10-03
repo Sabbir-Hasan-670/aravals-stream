@@ -1,0 +1,10 @@
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+WORKDIR /app
+COPY linux-x64/ ./
+RUN chmod +x /app/AravalsStream.Relay && mkdir -p /data && chown $APP_UID:$APP_UID /data
+ENV ASPNETCORE_ENVIRONMENT=Production
+ENV ASPNETCORE_URLS=http://+:8080
+ENV RELAY_STORAGE_PATH=/data/relay-state.json
+EXPOSE 8080
+USER $APP_UID
+ENTRYPOINT ["/app/AravalsStream.Relay"]

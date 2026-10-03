@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>AravalsRemoteCapture</AssemblyName>
+    <RootNamespace>AravalsStream.RemoteAgent</RootNamespace>
+    <AssemblyTitle>Aravals Stream Remote Capture Agent</AssemblyTitle>
+    <Product>Aravals Stream</Product>
+    <Company>Aravals</Company>
+    <Description>Remote desktop capture Agent for Aravals Stream</Description>
+    <ApplicationIcon>..\AravalsStream.App\Assets\Brand\Aravals Stream.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AravalsStream.Core\AravalsStream.Core.csproj" />
+    <ProjectReference Include="..\AravalsStream.Capture\AravalsStream.Capture.csproj" />
+    <Content Include="..\..\ffmpeg\bin\ffmpeg.exe" Link="ffmpeg\bin\ffmpeg.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

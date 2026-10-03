@@ -1,0 +1,369 @@
+<Window x:Class="AravalsStream.App.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:AravalsStream.App.ViewModels"
+        xmlns:controls="clr-namespace:AravalsStream.App.Controls"
+        Title="ARAVALS STREAM" Width="1600" Height="900" MinWidth="800" MinHeight="450"
+        WindowStartupLocation="CenterScreen" WindowState="Maximized" UseLayoutRounding="True" SnapsToDevicePixels="True">
+  <Window.DataContext><vm:MainViewModel/></Window.DataContext>
+  <Window.Resources>
+    <DataTemplate x:Key="ChatMessageTemplate">
+      <Border Margin="0,0,0,4" Padding="6,4" Background="{StaticResource CardBrush}" CornerRadius="4">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+          <Border Grid.Column="0" Width="22" Height="22" CornerRadius="11" Background="{StaticResource RaisedBrush}" Margin="0,2,8,0" VerticalAlignment="Top" ClipToBounds="True">
+            <TextBlock Text="{Binding Platform[0]}" Foreground="{StaticResource AccentBrush}" FontWeight="Bold" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <StackPanel Grid.Column="1">
+            <WrapPanel Orientation="Horizontal">
+              <TextBlock Text="{Binding AuthorName}" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource TextBrush}" Margin="0,0,6,0"/>
+              <Border Background="#3B82F6" CornerRadius="3" Padding="4,1" Margin="0,0,6,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding DisplayBadge}" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                <Border.Style>
+                  <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding DisplayBadge}" Value="">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </Border.Style>
+              </Border>
+              <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:HH:mm}'}" Style="{StaticResource TinyText}" VerticalAlignment="Center"/>
+            </WrapPanel>
+            <TextBlock Text="{Binding Text}" FontSize="11" Foreground="{StaticResource TextBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+  </Window.Resources>
+  <Grid Background="{StaticResource ShellBrush}">
+    <Grid.RowDefinitions><RowDefinition x:Name="ShellHeaderRow" Height="64"/><RowDefinition Height="*"/><RowDefinition x:Name="ShellFooterRow" Height="76"/></Grid.RowDefinitions>
+
+    <!-- Application shell -->
+    <Border Grid.Row="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrushDark}" BorderThickness="0,0,0,1" Padding="20,0">
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <Image Width="34" Height="30" Source="{StaticResource BrandLogo}" Stretch="Uniform" Margin="0,0,10,0"/>
+          <TextBlock Text="ARAVALS STREAM" Style="{StaticResource Brand}" VerticalAlignment="Center"/>
+          <Border Background="#38242C" CornerRadius="5" Padding="9,5" Margin="15,0,0,0" VerticalAlignment="Center"><StackPanel Orientation="Horizontal"><Ellipse x:Name="GlobalStreamStatusDot" Width="7" Height="7" Fill="{StaticResource DangerBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/><TextBlock x:Name="GlobalStreamStatusText" Text="OFFLINE" Foreground="{StaticResource DangerBrush}" FontSize="11" FontWeight="SemiBold"/></StackPanel></Border>
+        </StackPanel>
+        <Border Grid.Column="1" Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrushDark}" BorderThickness="1" CornerRadius="8" Padding="3" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal">
+            <RadioButton x:Name="HorizontalModeButton" GroupName="PreviewMode" Content="Horizontal" Command="{Binding SetHorizontalCommand}" Style="{StaticResource SegmentedRadio}"/>
+            <RadioButton x:Name="VerticalModeButton" GroupName="PreviewMode" Content="Vertical" Command="{Binding SetVerticalCommand}" Style="{StaticResource SegmentedRadio}"/>
+            <RadioButton x:Name="BothModeButton" GroupName="PreviewMode" Content="Both" Command="{Binding SetBothCommand}" Style="{StaticResource SegmentedRadio}"/>
+          </StackPanel>
+        </Border>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+          <Button x:Name="AudioMatrixBtn" Click="AudioMatrix_Click" Content="AUDIO MATRIX" Style="{StaticResource GhostButton}" Height="30" Padding="12,0" Margin="0,0,10,0" ToolTip="Configure per-destination audio routing &amp; sync offsets"/>
+          <Button x:Name="SettingsBtn" Click="Settings_Click" Content="SETTINGS" Style="{StaticResource GhostButton}" Height="30" Padding="12,0" ToolTip="Open Settings Center"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Three-column workspace -->
+    <Grid x:Name="WorkspaceGrid" Grid.Row="1" Margin="16,14,16,14">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="1*" MinWidth="200" MaxWidth="280"/><ColumnDefinition Width="14"/><ColumnDefinition Width="3*" MinWidth="300"/><ColumnDefinition Width="14"/><ColumnDefinition Width="1.2*" MinWidth="220" MaxWidth="330"/></Grid.ColumnDefinitions>
+
+      <!-- Scenes and sources scroll separately -->
+      <Grid Grid.Column="0"><Grid.RowDefinitions><RowDefinition Height="0.38*"/><RowDefinition Height="14"/><RowDefinition Height="0.62*"/></Grid.RowDefinitions>
+        <Border Grid.Row="0" Style="{StaticResource Panel}" Padding="12">
+          <Grid><Grid.RowDefinitions><RowDefinition Height="38"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="SCENES" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" Margin="5,0,0,0"/><Button Grid.Column="1" Content="+" Click="AddScene_Click" Style="{StaticResource IconButton}" ToolTip="Add scene"/></Grid>
+            <ListBox x:Name="SceneList" Grid.Row="1" ItemsSource="{Binding Scenes}" SelectedItem="{Binding SelectedScene}" ItemTemplate="{StaticResource SceneRowTemplate}" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AllowDrop="True" PreviewMouseLeftButtonDown="SceneList_PreviewMouseLeftButtonDown" PreviewMouseMove="SceneList_PreviewMouseMove" DragOver="SceneList_DragOver" Drop="SceneList_Drop" KeyDown="SceneList_KeyDown" Button.Click="SceneList_ButtonClick" MouseRightButtonUp="SceneList_MouseRightButtonUp">
+              <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                  <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                  <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                  <Setter Property="Padding" Value="0"/>
+                  <Setter Property="Margin" Value="0,0,0,2"/>
+                  <Setter Property="Background" Value="Transparent"/>
+                  <Setter Property="BorderThickness" Value="0"/>
+                  <Setter Property="Template">
+                    <Setter.Value>
+                      <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="ItemSurface" Background="Transparent" CornerRadius="7" SnapsToDevicePixels="True">
+                          <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                          <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ItemSurface" Property="Background" Value="{StaticResource RaisedBrush}"/>
+                          </Trigger>
+                        </ControlTemplate.Triggers>
+                      </ControlTemplate>
+                    </Setter.Value>
+                  </Setter>
+                </Style>
+              </ListBox.ItemContainerStyle>
+            </ListBox>
+          </Grid>
+        </Border>
+        <Border Grid.Row="2" Style="{StaticResource Panel}" Padding="12">
+          <Grid><Grid.RowDefinitions><RowDefinition Height="38"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="SOURCES" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" Margin="5,0,0,0"/><Button Grid.Column="1" Content="+" Click="AddSource_Click" Style="{StaticResource IconButton}" ToolTip="Add source"/></Grid>
+            <ListBox x:Name="SourceList" Grid.Row="1" ItemsSource="{Binding SelectedScene.Sources}" ItemTemplate="{StaticResource SourceRowTemplate}" SelectionChanged="SourceList_SelectionChanged" Button.Click="SourceList_ButtonClick" MouseRightButtonUp="SourceList_MouseRightButtonUp" KeyDown="SourceList_KeyDown" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+              <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                  <Setter Property="Padding" Value="0"/>
+                  <Setter Property="Margin" Value="0,0,0,4"/>
+                  <Setter Property="Background" Value="Transparent"/>
+                  <Setter Property="BorderThickness" Value="0"/>
+                  <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                  <Setter Property="Template">
+                    <Setter.Value>
+                      <ControlTemplate TargetType="ListBoxItem">
+                        <Border Background="{TemplateBinding Background}" BorderThickness="0" CornerRadius="6" SnapsToDevicePixels="True">
+                          <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
+                        </Border>
+                      </ControlTemplate>
+                    </Setter.Value>
+                  </Setter>
+                </Style>
+              </ListBox.ItemContainerStyle>
+            </ListBox>
+          </Grid>
+        </Border>
+      </Grid>
+
+      <!-- Preview and chat -->
+      <Grid Grid.Column="2"><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="14"/><RowDefinition x:Name="ChatRow" Height="220"/></Grid.RowDefinitions>
+        <Border Grid.Row="0" Style="{StaticResource Panel}" Padding="14"><Grid><Grid.RowDefinitions><RowDefinition Height="36"/><RowDefinition Height="*"/><RowDefinition Height="40"/></Grid.RowDefinitions>
+          <Grid><TextBlock Text="LIVE PREVIEW" Style="{StaticResource SectionTitle}" VerticalAlignment="Center"/><TextBlock Text="SCENE CANVAS" Style="{StaticResource TinyText}" HorizontalAlignment="Right" VerticalAlignment="Center"/></Grid>
+          <Grid Grid.Row="1" Margin="0,8,0,0"><Grid.ColumnDefinitions><ColumnDefinition x:Name="HorizontalColumn" Width="3*"/><ColumnDefinition x:Name="PreviewGap" Width="12"/><ColumnDefinition x:Name="VerticalColumn" Width="1*"/></Grid.ColumnDefinitions>
+            <Border x:Name="HorizontalPane" Background="#070C12" BorderBrush="{StaticResource BorderBrushDark}" BorderThickness="1" CornerRadius="8" ClipToBounds="True"><Grid><controls:ScenePreview x:Name="HorizontalPreview"/><Border Background="#B00B111A" CornerRadius="4" Padding="8,4" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10" IsHitTestVisible="False"><TextBlock Text="HORIZONTAL • 1920×1080" Style="{StaticResource TinyText}"/></Border></Grid></Border>
+            <Border x:Name="VerticalPane" Grid.Column="2" Background="#070C12" BorderBrush="{StaticResource BorderBrushDark}" BorderThickness="1" CornerRadius="8" ClipToBounds="True"><Grid><controls:ScenePreview x:Name="VerticalPreview"/><Border Background="#B00B111A" CornerRadius="4" Padding="8,4" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10" IsHitTestVisible="False"><TextBlock Text="VERTICAL • 1080×1920" Style="{StaticResource TinyText}"/></Border></Grid></Border>
+          </Grid>
+          <StackPanel Grid.Row="2" Orientation="Horizontal" VerticalAlignment="Bottom">
+            <Button Content="Fit Entire" Click="FitEntire_Click" Style="{StaticResource GhostButton}" Padding="9,5" Margin="0,0,6,0" ToolTip="Fit entire source preserving aspect ratio"/>
+            <Button Content="Fill Canvas" Click="FillCanvas_Click" Style="{StaticResource GhostButton}" Padding="9,5" Margin="0,0,6,0" ToolTip="Fill canvas cropping overflow"/>
+            <Button Content="Auto Vertical" Click="AutoVertical_Click" Style="{StaticResource GhostButton}" Padding="9,5" Margin="0,0,6,0" ToolTip="Apply smart vertical layout to vertical preview"/>
+            <Button Content="Reset" Click="ResetLayout_Click" Style="{StaticResource GhostButton}" Padding="9,5" Margin="0,0,6,0" ToolTip="Reset transform"/>
+            <Button x:Name="SafeAreaBtn" Content="Safe Area" Click="ToggleSafeArea_Click" Style="{StaticResource GhostButton}" Padding="9,5" ToolTip="Toggle vertical safe area guides"/>
+          </StackPanel>
+        </Grid></Border>
+        <Border Grid.Row="2" Style="{StaticResource Panel}" Padding="14">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="28"/>
+              <RowDefinition Height="*"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <DockPanel><TextBlock Text="CHAT" Style="{StaticResource SectionTitle}" VerticalAlignment="Center"/><Button Content="Alert Settings" Click="AlertSettings_Click" Style="{StaticResource GhostButton}" HorizontalAlignment="Right" DockPanel.Dock="Right" Padding="8,2"/></DockPanel>
+            <TabControl Grid.Row="1" Margin="0,2,0,0">
+              <TabItem Header="All">
+                <ListBox ItemsSource="{Binding AllChatMessages}" ItemTemplate="{StaticResource ChatMessageTemplate}" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+              </TabItem>
+              <TabItem Header="YouTube">
+                <ListBox ItemsSource="{Binding YouTubeChatMessages}" ItemTemplate="{StaticResource ChatMessageTemplate}" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+              </TabItem>
+              <TabItem Header="Twitch"><ListBox ItemsSource="{Binding TwitchChatMessages}" ItemTemplate="{StaticResource ChatMessageTemplate}" Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto"/></TabItem>
+              <TabItem Header="Kick"><Grid><ListBox ItemsSource="{Binding KickChatMessages}" ItemTemplate="{StaticResource ChatMessageTemplate}" Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto"/><TextBlock Text="Receiving chat requires a public Kick webhook service. Unavailable in local-only mode." Style="{StaticResource MutedText}" TextWrapping="Wrap" VerticalAlignment="Bottom" Margin="12"/></Grid></TabItem>
+              <TabItem Header="Facebook"><ListBox ItemsSource="{Binding FacebookChatMessages}" ItemTemplate="{StaticResource ChatMessageTemplate}" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"/></TabItem>
+              <TabItem Header="TikTok">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="16">
+                  <TextBlock Text="TikTok Chat" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                  <TextBlock Text="Unavailable through current official developer API" Style="{StaticResource MutedText}" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
+                </StackPanel>
+              </TabItem>
+              <TabItem Header="Activity"><ListBox x:Name="ActivityList" Background="Transparent" BorderThickness="0" Foreground="{StaticResource TextBrush}"/></TabItem>
+            </TabControl>
+            <Grid Grid.Row="2" Margin="0,8,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <ComboBox x:Name="ChatTargetBox" SelectedIndex="0" Height="28" Margin="0,0,8,0"><ComboBoxItem Content="YouTube"/><ComboBoxItem Content="Twitch"/><ComboBoxItem Content="Kick"/><ComboBoxItem Content="Facebook"/></ComboBox>
+              <TextBox x:Name="ChatInputBox" Grid.Column="1" Height="28" VerticalContentAlignment="Center" Background="{StaticResource PanelBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrushDark}" Padding="6,0" KeyDown="ChatInputBox_KeyDown"/>
+              <Button x:Name="ChatSendBtn" Grid.Column="2" Content="Send" Click="ChatSendBtn_Click" Style="{StaticResource AccentButton}" Height="28" Padding="14,0" Margin="8,0,0,0"/>
+            </Grid>
+          </Grid>
+        </Border>
+      </Grid>
+
+      <!-- Destination, mixer, and stats panels -->
+      <Grid Grid.Column="4"><Grid.RowDefinitions><RowDefinition Height="1.2*" MinHeight="120"/><RowDefinition Height="14"/><RowDefinition Height="0.8*" MinHeight="100"/><RowDefinition Height="14"/><RowDefinition x:Name="StatsRow" Height="1*" MinHeight="110"/></Grid.RowDefinitions>
+        <Border Grid.Row="0" Style="{StaticResource Panel}" Padding="12"><Grid><Grid.RowDefinitions><RowDefinition Height="38"/><RowDefinition Height="*"/><RowDefinition Height="42"/></Grid.RowDefinitions>
+          <TextBlock Text="DESTINATIONS" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" Margin="5,0,0,0"/>
+          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"><ItemsControl x:Name="DestinationItems" Button.Click="DestinationButton_Click" ItemsSource="{Binding DestinationGroups}" ItemTemplate="{StaticResource DestinationCardTemplate}"/></ScrollViewer>
+          <Button Grid.Row="2" Content="+ Add Destination" Command="{Binding AddDestinationCommand}" Style="{StaticResource GhostButton}" HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
+        </Grid></Border>
+        <Border Grid.Row="2" Style="{StaticResource Panel}" Padding="12"><Grid><Grid.RowDefinitions><RowDefinition Height="38"/><RowDefinition Height="*"/></Grid.RowDefinitions><TextBlock Text="AUDIO MIXER" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" Margin="5,0,0,0"/><ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"><ItemsControl x:Name="MixerList" ItemTemplate="{StaticResource AudioMixerRowTemplate}"/></ScrollViewer></Grid></Border>
+        <Border Grid.Row="4" Style="{StaticResource Panel}" Padding="12">
+          <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+            <TextBlock Text="LIVE STATS" Style="{StaticResource SectionTitle}"/>
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,6,0,0">
+              <StackPanel>
+                <TextBlock Text="RECORDING" Style="{StaticResource TinyText}" Margin="0,0,0,4"/>
+                <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrushDark}" BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,10">
+                  <Grid>
+                    <Grid.RowDefinitions>
+                      <RowDefinition Height="Auto"/>
+                      <RowDefinition Height="Auto"/>
+                      <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*"/>
+                      <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                      <Ellipse x:Name="RecStatDot" Width="7" Height="7" Fill="{StaticResource DangerBrush}" Margin="0,0,6,0" VerticalAlignment="Center" Visibility="Collapsed"/>
+                      <TextBlock x:Name="RecStatState" Text="Idle" FontWeight="SemiBold" FontSize="12" Foreground="{StaticResource QuietBrush}"/>
+                    </StackPanel>
+                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="RecStatElapsed" Text="00:00:00" FontFamily="Consolas" FontWeight="SemiBold" FontSize="12" Foreground="{StaticResource QuietBrush}" HorizontalAlignment="Right"/>
+                    <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" x:Name="RecStatEncoder" Text="Encoder: auto" Style="{StaticResource TinyText}" Margin="0,4,0,2" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" x:Name="RecStatPerformance" Text="0.0 FPS • 0 dropped" Style="{StaticResource TinyText}"/>
+                  </Grid>
+                </Border>
+                <TextBlock x:Name="LiveStatsText" Visibility="Collapsed"/>
+                <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrushDark}" BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,10">
+                  <StackPanel>
+                    <TextBlock Text="CHAT &amp; ALERTS" Style="{StaticResource TinyText}" Margin="0,0,0,4"/>
+                    <TextBlock x:Name="ChatConnectionStats" Style="{StaticResource TinyText}" TextWrapping="Wrap"/>
+                    <TextBlock x:Name="AlertQueueStats" Style="{StaticResource TinyText}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                  </StackPanel>
+                </Border>
+
+                <StackPanel x:Name="YouTubeStatsCard" Margin="0,0,0,10">
+                  <TextBlock Text="YOUTUBE LIVE" Style="{StaticResource TinyText}" Margin="0,0,0,4"/>
+                  <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrushDark}" BorderThickness="1" CornerRadius="4" Padding="10,8">
+                    <StackPanel>
+                      <Grid Margin="0,0,0,4">
+                        <TextBlock Text="Broadcast:" Style="{StaticResource TinyText}" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="YtStatBroadcast" Text="{Binding YouTubeBroadcastStatus}" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Right"/>
+                      </Grid>
+                      <Grid Margin="0,0,0,4">
+                        <TextBlock Text="Viewers:" Style="{StaticResource TinyText}" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="YtStatViewers" Text="{Binding YouTubeConcurrentViewers}" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource TextBrush}" HorizontalAlignment="Right"/>
+                      </Grid>
+                      <Grid Margin="0,0,0,4">
+                        <TextBlock Text="Subscribers:" Style="{StaticResource TinyText}" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="YtStatSubscribers" Text="{Binding YouTubeSubscribers}" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource TextBrush}" HorizontalAlignment="Right"/>
+                      </Grid>
+                      <Grid>
+                        <TextBlock Text="Chat:" Style="{StaticResource TinyText}" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="YtStatChat" Text="{Binding YouTubeChatStatus}" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource QuietBrush}" HorizontalAlignment="Right"/>
+                      </Grid>
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+
+                <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrushDark}" BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,10">
+                  <StackPanel>
+                    <TextBlock Text="TWITCH PLATFORM" Style="{StaticResource TinyText}" Margin="0,0,0,4"/>
+                    <TextBlock Text="{Binding TwitchBroadcastStatus, StringFormat=Status: {0}}" Style="{StaticResource TinyText}"/>
+                    <TextBlock Text="{Binding TwitchViewers, StringFormat=Viewers: {0}}" Style="{StaticResource TinyText}"/>
+                    <TextBlock Text="{Binding TwitchFollowers, StringFormat=Followers: {0}}" Style="{StaticResource TinyText}"/>
+                    <TextBlock Text="{Binding TwitchCategory, StringFormat=Category: {0}}" Style="{StaticResource TinyText}"/>
+                    <TextBlock Text="{Binding TwitchChatStatus, StringFormat=Chat: {0}}" Style="{StaticResource TinyText}"/>
+                  </StackPanel>
+                </Border>
+
+                <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrushDark}" BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,10">
+                  <StackPanel>
+                    <TextBlock Text="KICK PLATFORM" Style="{StaticResource TinyText}" Margin="0,0,0,4"/>
+                    <TextBlock Text="{Binding KickBroadcastStatus, StringFormat=Status: {0}}" Style="{StaticResource TinyText}"/>
+                    <TextBlock Text="{Binding KickViewers, StringFormat=Viewers: {0}}" Style="{StaticResource TinyText}"/>
+                    <TextBlock Text="{Binding KickFollowers, StringFormat=Followers: {0}}" Style="{StaticResource TinyText}"/>
+                    <TextBlock Text="{Binding KickCategory, StringFormat=Category: {0}}" Style="{StaticResource TinyText}"/>
+                    <TextBlock Text="{Binding KickChatStatus, StringFormat=Chat: {0}}" Style="{StaticResource TinyText}"/>
+                  </StackPanel>
+                </Border>
+
+                <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrushDark}" BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,10">
+                  <StackPanel>
+                    <TextBlock Text="FACEBOOK PLATFORM" Style="{StaticResource TinyText}" Margin="0,0,0,4"/>
+                    <TextBlock Text="{Binding FacebookPageName, StringFormat=Page: {0}}" Style="{StaticResource TinyText}"/>
+                    <TextBlock Text="{Binding FacebookBroadcastStatus, StringFormat=Broadcast: {0}}" Style="{StaticResource TinyText}" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding FacebookViewers, StringFormat=Viewers: {0}}" Style="{StaticResource TinyText}"/>
+                    <TextBlock Text="{Binding FacebookCommentsStatus, StringFormat=Comments: {0}}" Style="{StaticResource TinyText}"/>
+                  </StackPanel>
+                </Border>
+
+                <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrushDark}" BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,10">
+                  <StackPanel>
+                    <TextBlock Text="TIKTOK PLATFORM" Style="{StaticResource TinyText}" Margin="0,0,0,4"/>
+                    <TextBlock Text="{Binding TikTokAccountName, StringFormat=Account: {0}}" Style="{StaticResource TinyText}"/>
+                    <TextBlock Text="{Binding TikTokBroadcastStatus, StringFormat=Live: {0}}" Style="{StaticResource TinyText}" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding TikTokViewers, StringFormat=Viewers: {0}}" Style="{StaticResource TinyText}"/>
+                    <TextBlock Text="{Binding TikTokChatStatus, StringFormat=Chat: {0}}" Style="{StaticResource TinyText}"/>
+                  </StackPanel>
+                </Border>
+
+                <TextBlock Text="OUTPUTS" Style="{StaticResource TinyText}" Margin="0,0,0,4"/>
+                <ItemsControl x:Name="OutputStatsItems">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrushDark}" BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,6">
+                        <StackPanel>
+                          <Grid>
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" TextTrimming="CharacterEllipsis" Margin="0,0,70,0"/>
+                            <TextBlock Text="{Binding Status}" FontWeight="SemiBold" FontSize="11" HorizontalAlignment="Right" Foreground="{Binding StatusBrush}"/>
+                          </Grid>
+                          <TextBlock Text="{Binding Details}" Style="{StaticResource TinyText}" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock x:Name="StreamStatsText" Text="Stream: Offline" Style="{StaticResource MutedText}" Margin="0,4,0,4" TextWrapping="Wrap"/>
+              </StackPanel>
+            </ScrollViewer>
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <!-- Fixed bottom control bar -->
+    <Border Grid.Row="2" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrushDark}" BorderThickness="0,1,0,0" Padding="20,0">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+          <StackPanel x:Name="MicBar" Orientation="Horizontal" Margin="0,0,22,0" VerticalAlignment="Center"><TextBlock Text="MIC" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" Margin="0,0,8,0"/><ProgressBar Value="{Binding Peak, Mode=OneWay}" Maximum="1" Width="105" Height="9" VerticalAlignment="Center"/><CheckBox Content="Mute" IsChecked="{Binding Muted, Mode=TwoWay}" Margin="9,0,0,0" VerticalAlignment="Center"/></StackPanel>
+          <StackPanel x:Name="DesktopBar" Orientation="Horizontal" VerticalAlignment="Center"><TextBlock Text="DESKTOP" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" Margin="0,0,8,0"/><ProgressBar Value="{Binding Peak, Mode=OneWay}" Maximum="1" Width="105" Height="9" VerticalAlignment="Center"/><CheckBox Content="Mute" IsChecked="{Binding Muted, Mode=TwoWay}" Margin="9,0,0,0" VerticalAlignment="Center"/></StackPanel>
+        </StackPanel>
+
+        <!-- Recording controls -->
+        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
+          <TextBlock x:Name="RecStatsLabel" Text="" Style="{StaticResource MutedText}" FontSize="11" VerticalAlignment="Center" Margin="0,0,10,0" Visibility="Collapsed"/>
+          <TextBlock x:Name="RecTimerLabel" Text="00:00:00" FontFamily="Consolas" FontWeight="SemiBold" FontSize="13" Foreground="{StaticResource QuietBrush}" VerticalAlignment="Center" Margin="0,0,12,0" Visibility="Collapsed"/>
+          <Button x:Name="RecSettingsBtn" Click="RecSettings_Click" Style="{StaticResource GhostButton}" ToolTip="Recording Settings" Margin="0,0,8,0" Padding="8,6" VerticalAlignment="Center">
+            <Viewbox Width="14" Height="14">
+              <Path Data="M8,10.5 C6.6,10.5 5.5,9.4 5.5,8 C5.5,6.6 6.6,5.5 8,5.5 C9.4,5.5 10.5,6.6 10.5,8 C10.5,9.4 9.4,10.5 8,10.5 Z M15.1,9.4 L13.7,8.9 C13.6,8.6 13.5,8.3 13.3,8 L14,6.7 C14.2,6.4 14.1,6 13.8,5.8 L12.2,4.2 C12,3.9 11.6,3.8 11.3,4 L10,4.7 C9.7,4.5 9.4,4.4 9.1,4.3 L8.6,2.9 C8.5,2.5 8.1,2.2 7.7,2.2 L5.4,2.2 C5,2.2 4.7,2.5 4.6,2.9 L4.1,4.3 C3.8,4.4 3.5,4.5 3.2,4.7 L1.9,4 C1.6,3.8 1.2,3.9 1,4.2 L-0.6,5.8 C-0.8,6 -0.7,6.4 -0.5,6.7 L0.2,8 C0.1,8.3 -0.1,8.6 -0.1,8.9 L-1.5,9.4 C-1.9,9.5 -2.2,9.9 -2.2,10.3 L-2.2,12.6 C-2.2,13 -1.9,13.3 -1.5,13.4 L-0.1,13.9 C0,14.2 0.1,14.5 0.3,14.8 L-0.4,16.1 C-0.6,16.4 -0.5,16.8 -0.2,17 L1.4,18.6 C1.6,18.9 2,19 2.3,18.8 L3.6,18.1 C3.9,18.3 4.2,18.4 4.5,18.5 L5,19.9 C5.1,20.3 5.5,20.6 5.9,20.6 L8.2,20.6 C8.6,20.6 8.9,20.3 9,19.9 L9.5,18.5 C9.8,18.4 10.1,18.3 10.4,18.1 L11.7,18.8 C12,19 12.4,18.9 12.6,18.6 L14.2,17 C14.4,16.8 14.3,16.4 14.1,16.1 L13.4,14.8 C13.5,14.5 13.7,14.2 13.7,13.9 L15.1,13.4 C15.5,13.3 15.8,12.9 15.8,12.5 L15.8,10.2 C15.8,9.8 15.5,9.5 15.1,9.4 Z" Fill="{StaticResource QuietBrush}"/>
+            </Viewbox>
+          </Button>
+          <Button x:Name="RecButton" Click="RecButton_Click" Style="{StaticResource GhostButton}" VerticalAlignment="Center" Height="36" Padding="14,0" Focusable="False">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+              <Ellipse x:Name="RecDot" Width="10" Height="10" Fill="{StaticResource DangerBrush}" Margin="0,0,8,0" VerticalAlignment="Center" Opacity="0.5"/>
+              <TextBlock x:Name="RecButtonText" Text="REC" FontWeight="Bold" FontSize="12" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+          <Button x:Name="PauseRecButton" Content="PAUSE" Click="PauseRecButton_Click" Style="{StaticResource GhostButton}" VerticalAlignment="Center" Height="36" Padding="12,0" Margin="8,0,0,0" Visibility="Collapsed"/>
+        </StackPanel>
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock x:Name="PerformanceStatusLabel" Text="Performance: Good" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="8,0,14,0"/>
+          <TextBlock x:Name="OutputsCountLabel" Text="0 outputs enabled" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="8,0,18,0"/>
+          <Button x:Name="StreamButton" Content="START STREAM" Style="{StaticResource PrimaryButton}" Command="{Binding StartStreamCommand}" VerticalAlignment="Center" MinWidth="140"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>
+
+
+
+
+
+
+
+

@@ -1,0 +1,30 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+logs/
+settings.json
+*.log
+
+# Local builds, acceptance recordings and installer outputs
+/artifacts/
+/publish/
+/publish-agent/
+/installer/output/
+/scratch/
+
+# Runtime credentials and state
+.env
+.env.*
+!.env.example
+secrets/
+relay-state*.json
+session.active
+*.pfx
+*.p12
+*.key
+*.pem
+
+# Native tools are distributed in releases, not source commits
+/ffmpeg/bin/

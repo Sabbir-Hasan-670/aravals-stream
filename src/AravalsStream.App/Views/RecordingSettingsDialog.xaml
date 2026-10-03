@@ -1,0 +1,96 @@
+<Window x:Class="AravalsStream.App.Views.RecordingSettingsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="RECORDING SETTINGS" Width="520" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{StaticResource ShellBrush}">
+  <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrushDark}" BorderThickness="1" CornerRadius="10" Padding="20">
+    <StackPanel>
+      <Grid Margin="0,0,0,16">
+        <TextBlock Text="RECORDING SETTINGS" Style="{StaticResource SectionTitle}" VerticalAlignment="Center"/>
+        <Border x:Name="FfmpegStatusBadge" HorizontalAlignment="Right" Background="#142B20" BorderBrush="#1F5A38" BorderThickness="1" CornerRadius="4" Padding="8,3">
+          <TextBlock x:Name="FfmpegStatusText" Text="FFmpeg: Checking..." FontSize="10" FontWeight="Bold" Foreground="{StaticResource AccentBrush}"/>
+        </Border>
+      </Grid>
+
+      <!-- Recording Folder -->
+      <TextBlock Text="RECORDING FOLDER" Style="{StaticResource TinyText}" Margin="0,0,0,6"/>
+      <Grid Margin="0,0,0,14">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBox x:Name="FolderInput" IsReadOnly="True" VerticalAlignment="Center" Margin="0,0,8,0"/>
+        <Button Grid.Column="1" Content="Browse..." Click="BrowseFolder_Click" Style="{StaticResource GhostButton}" Padding="12,6"/>
+      </Grid>
+
+      <!-- Output Mode -->
+      <TextBlock Text="OUTPUT MODE" Style="{StaticResource TinyText}" Margin="0,0,0,6"/>
+      <ComboBox x:Name="ModeCombo" Margin="0,0,0,14">
+        <ComboBoxItem Content="Horizontal (1920×1080)"/>
+        <ComboBoxItem Content="Vertical (1080×1920)"/>
+        <ComboBoxItem Content="Both (Separate H &amp; V files)"/>
+      </ComboBox>
+
+      <!-- Container Format -->
+      <TextBlock Text="CONTAINER FORMAT" Style="{StaticResource TinyText}" Margin="0,0,0,6"/>
+      <ComboBox x:Name="ContainerCombo" Margin="0,0,0,14">
+        <ComboBoxItem Content="MKV (.mkv) — Recommended (Crash-Resilient)"/>
+        <ComboBoxItem Content="MP4 (.mp4) — Standard"/>
+      </ComboBox>
+
+      <!-- Video Encoder & Frame Rate -->
+      <Grid Margin="0,0,0,14">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="1.5*"/>
+          <ColumnDefinition Width="10"/>
+          <ColumnDefinition Width="1*"/>
+        </Grid.ColumnDefinitions>
+        <StackPanel Grid.Column="0">
+          <TextBlock Text="VIDEO ENCODER" Style="{StaticResource TinyText}" Margin="0,0,0,6"/>
+          <ComboBox x:Name="EncoderCombo"/>
+        </StackPanel>
+        <StackPanel Grid.Column="2">
+          <TextBlock Text="FRAME RATE" Style="{StaticResource TinyText}" Margin="0,0,0,6"/>
+          <ComboBox x:Name="FpsCombo">
+            <ComboBoxItem Content="60 FPS (Smooth)"/>
+            <ComboBoxItem Content="30 FPS (Standard)"/>
+          </ComboBox>
+        </StackPanel>
+      </Grid>
+
+      <!-- Bitrates -->
+      <Grid Margin="0,0,0,16">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="1*"/>
+          <ColumnDefinition Width="10"/>
+          <ColumnDefinition Width="1*"/>
+        </Grid.ColumnDefinitions>
+        <StackPanel Grid.Column="0">
+          <TextBlock Text="VIDEO BITRATE" Style="{StaticResource TinyText}" Margin="0,0,0,6"/>
+          <ComboBox x:Name="VideoBitrateCombo">
+            <ComboBoxItem Content="8000 kbps (Very High)"/>
+            <ComboBoxItem Content="6000 kbps (High — Default)"/>
+            <ComboBoxItem Content="4500 kbps (Balanced)"/>
+            <ComboBoxItem Content="3000 kbps (Medium)"/>
+          </ComboBox>
+        </StackPanel>
+        <StackPanel Grid.Column="2">
+          <TextBlock Text="AUDIO BITRATE" Style="{StaticResource TinyText}" Margin="0,0,0,6"/>
+          <ComboBox x:Name="AudioBitrateCombo">
+            <ComboBoxItem Content="320 kbps (Studio)"/>
+            <ComboBoxItem Content="192 kbps (High Quality)"/>
+            <ComboBoxItem Content="160 kbps (Standard)"/>
+            <ComboBoxItem Content="128 kbps (Compact)"/>
+          </ComboBox>
+        </StackPanel>
+      </Grid>
+
+      <!-- Buttons -->
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+        <Button Content="Cancel" Click="Cancel_Click" Style="{StaticResource GhostButton}" Margin="0,0,8,0" Padding="16,6"/>
+        <Button Content="Save Settings" Click="Save_Click" Style="{StaticResource PrimaryButton}" Padding="18,6"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</Window>
