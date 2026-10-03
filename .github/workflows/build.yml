@@ -73,10 +73,13 @@ jobs:
         run: dotnet publish src/AravalsStream.Desktop/AravalsStream.Desktop.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o artifacts/desktop-${{ matrix.rid }}
       - name: Publish Relay
         run: dotnet publish src/AravalsStream.Relay/AravalsStream.Relay.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o artifacts/relay-${{ matrix.rid }}
+      - name: Package portable desktop development build
+        shell: pwsh
+        run: ./scripts/package-portable.ps1 -PublishDirectory artifacts/desktop-${{ matrix.rid }} -Runtime ${{ matrix.rid }} -OutputDirectory artifacts/packages
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-development-${{ matrix.rid }}
-          path: artifacts/desktop-${{ matrix.rid }}/
+          path: artifacts/packages/*.*
       - uses: actions/upload-artifact@v4
         with:
           name: relay-${{ matrix.rid }}

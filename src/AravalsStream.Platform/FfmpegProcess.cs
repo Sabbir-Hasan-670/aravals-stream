@@ -50,6 +50,12 @@ public sealed class FfmpegProcess : IAsyncDisposable
             var candidate = Path.Combine(directory.Trim('"'), file);
             if (File.Exists(candidate)) return candidate;
         }
+        if (!OperatingSystem.IsWindows())
+            foreach (var directory in new[] { "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin" })
+            {
+                var candidate = Path.Combine(directory, file);
+                if (File.Exists(candidate)) return candidate;
+            }
         throw new FileNotFoundException("FFmpeg is required. Install it or use a package containing the bundled media tools.");
     }
 }
