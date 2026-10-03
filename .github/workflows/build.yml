@@ -1,0 +1,83 @@
+name: Build and test
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Prepare media tools
+        shell: pwsh
+        run: ./scripts/get-windows-ffmpeg.ps1
+      - name: Build Windows solution
+        run: dotnet build AravalsStream.sln -c Release
+      - name: Test existing Windows workstation
+        run: dotnet test AravalsStream.sln -c Release --no-build --logger trx --results-directory artifacts/tests
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+      - name: Package Windows Desktop and Agent
+        shell: pwsh
+        run: |
+          ./installer/build-installer.ps1
+          ./installer/build-agent-installer.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installers
+          path: installer/output/*.exe
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-test-results
+          path: artifacts/tests/*.trx
+  portable:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: macos-15-intel
+            rid: osx-x64
+          - os: macos-latest
+            rid: osx-arm64
+          - os: windows-latest
+            rid: win-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Prepare Windows media tools
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/get-windows-ffmpeg.ps1
+      - name: Prepare Linux media tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Prepare macOS media tools
+        if: runner.os == 'macOS'
+        run: command -v ffmpeg || brew install ffmpeg
+      - name: Test portable capture and media contracts
+        # Synthetic tests exercise the actual encoder without requiring camera/screen permissions.
+        # Native capture acceptance remains a separate gate on each platform.
+        run: dotnet test tests/AravalsStream.PlatformTests/AravalsStream.PlatformTests.csproj -c Release --logger trx
+      - name: Publish portable desktop development build
+        run: dotnet publish src/AravalsStream.Desktop/AravalsStream.Desktop.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o artifacts/desktop-${{ matrix.rid }}
+      - name: Publish Relay
+        run: dotnet publish src/AravalsStream.Relay/AravalsStream.Relay.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o artifacts/relay-${{ matrix.rid }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-development-${{ matrix.rid }}
+          path: artifacts/desktop-${{ matrix.rid }}/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: relay-${{ matrix.rid }}
+          path: artifacts/relay-${{ matrix.rid }}/
