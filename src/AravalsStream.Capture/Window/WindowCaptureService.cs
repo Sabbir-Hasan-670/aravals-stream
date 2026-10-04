@@ -95,6 +95,7 @@ internal sealed class GraphicsWindowSession : IWindowCaptureSession
     private readonly GraphicsCaptureItem _item;
     private readonly Direct3D11CaptureFramePool _pool;
     private readonly GraphicsCaptureSession _session;
+    private readonly object _frameGate = new();
     private Texture2D? _staging;
     private SizeInt32 _size;
     private bool _disposed;
@@ -129,60 +130,66 @@ internal sealed class GraphicsWindowSession : IWindowCaptureSession
 
     private void OnFrame(Direct3D11CaptureFramePool sender, object args)
     {
-        if (_disposed) return;
-        try
+        lock (_frameGate)
         {
-            using var frame = sender.TryGetNextFrame();
-            // Window Graphics Capture is event driven and may deliver frames faster
-            // than the compositor can use them (for example, a high-refresh browser).
-            // Drain every frame from the pool, but only perform the synchronous GPU
-            // readback at the app's configured capture rate.
-            var now = Stopwatch.GetTimestamp();
-            var interval = Stopwatch.Frequency / Math.Max(1, TargetFps);
-            while (true)
-            {
-                var next = Interlocked.Read(ref _nextFrameTicks);
-                if (now < next) return;
-                if (Interlocked.CompareExchange(ref _nextFrameTicks, now + interval, next) == next) break;
-            }
-            var size = frame.ContentSize;
-            if (size.Width <= 0 || size.Height <= 0) return;
-            if (size.Width != _size.Width || size.Height != _size.Height)
-            {
-                _size = size;
-                _staging?.Dispose(); _staging = null;
-                sender.Recreate(_winrtDevice, DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, size);
-            }
-            _staging ??= new Texture2D(_device, new Texture2DDescription
-            {
-                Width = size.Width, Height = size.Height, MipLevels = 1, ArraySize = 1,
-                Format = Format.B8G8R8A8_UNorm, SampleDescription = new SampleDescription(1, 0),
-                Usage = ResourceUsage.Staging, CpuAccessFlags = CpuAccessFlags.Read
-            });
-            var access = frame.Surface.As<IDirect3DDxgiInterfaceAccess>();
-            var texturePointer = access.GetInterface(TextureGuid);
-            using var texture = new Texture2D(texturePointer);
-            _device.ImmediateContext.CopyResource(texture, _staging);
-            var mapped = _device.ImmediateContext.MapSubresource(_staging, 0, MapMode.Read, SharpDX.Direct3D11.MapFlags.None);
+            if (_disposed) return;
             try
             {
-                var stride = size.Width * 4;
-                var pixels = System.Buffers.ArrayPool<byte>.Shared.Rent(stride * size.Height);
-                for (var y = 0; y < size.Height; y++)
-                    Marshal.Copy(nint.Add(mapped.DataPointer, y * mapped.RowPitch), pixels, y * stride, stride);
-                var result = new Display.DisplayFrame(size.Width, size.Height, stride, pixels);
-                if (FrameArrived is { } consumer) consumer.Invoke(this, result); else result.Dispose();
+                using var frame = sender.TryGetNextFrame();
+                // Window Graphics Capture is event driven and may deliver frames faster
+                // than the compositor can use them (for example, a high-refresh browser).
+                // Drain every frame from the pool, but only perform the synchronous GPU
+                // readback at the app's configured capture rate.
+                var now = Stopwatch.GetTimestamp();
+                var interval = Stopwatch.Frequency / Math.Max(1, TargetFps);
+                while (true)
+                {
+                    var next = Interlocked.Read(ref _nextFrameTicks);
+                    if (now < next) return;
+                    if (Interlocked.CompareExchange(ref _nextFrameTicks, now + interval, next) == next) break;
+                }
+                var size = frame.ContentSize;
+                if (size.Width <= 0 || size.Height <= 0) return;
+                if (size.Width != _size.Width || size.Height != _size.Height)
+                {
+                    _size = size;
+                    _staging?.Dispose(); _staging = null;
+                    sender.Recreate(_winrtDevice, DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, size);
+                }
+                _staging ??= new Texture2D(_device, new Texture2DDescription
+                {
+                    Width = size.Width, Height = size.Height, MipLevels = 1, ArraySize = 1,
+                    Format = Format.B8G8R8A8_UNorm, SampleDescription = new SampleDescription(1, 0),
+                    Usage = ResourceUsage.Staging, CpuAccessFlags = CpuAccessFlags.Read
+                });
+                var access = frame.Surface.As<IDirect3DDxgiInterfaceAccess>();
+                var texturePointer = access.GetInterface(TextureGuid);
+                using var texture = new Texture2D(texturePointer);
+                _device.ImmediateContext.CopyResource(texture, _staging);
+                var mapped = _device.ImmediateContext.MapSubresource(_staging, 0, MapMode.Read, SharpDX.Direct3D11.MapFlags.None);
+                try
+                {
+                    var stride = size.Width * 4;
+                    var pixels = System.Buffers.ArrayPool<byte>.Shared.Rent(stride * size.Height);
+                    for (var y = 0; y < size.Height; y++)
+                        Marshal.Copy(nint.Add(mapped.DataPointer, y * mapped.RowPitch), pixels, y * stride, stride);
+                    var result = new Display.DisplayFrame(size.Width, size.Height, stride, pixels);
+                    if (FrameArrived is { } consumer) consumer.Invoke(this, result); else result.Dispose();
+                }
+                finally { _device.ImmediateContext.UnmapSubresource(_staging, 0); }
             }
-            finally { _device.ImmediateContext.UnmapSubresource(_staging, 0); }
+            catch (Exception ex) when (!_disposed) { CaptureFailed?.Invoke(this, ex); }
         }
-        catch (Exception ex) when (!_disposed) { CaptureFailed?.Invoke(this, ex); }
     }
 
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
-        _pool.FrameArrived -= OnFrame;
-        _session.Dispose(); _pool.Dispose(); _staging?.Dispose(); _winrtDevice.Dispose(); _device.Dispose();
+        lock (_frameGate)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _pool.FrameArrived -= OnFrame;
+            _session.Dispose(); _pool.Dispose(); _staging?.Dispose(); _winrtDevice.Dispose(); _device.Dispose();
+        }
     }
 }

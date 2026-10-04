@@ -8,14 +8,13 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyTitle>Aravals Stream</AssemblyTitle>
     <Product>Aravals Stream</Product>
-    <Company>Aravals</Company>
+    <Company>Aravals Inc.</Company>
     <Description>Live streaming and recording workstation</Description>
     <ApplicationIcon>Assets\Brand\Aravals Stream.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets\Brand\Aravals Stream.png" />
     <Resource Include="Assets\Brand\Aravals Stream.ico" />
-    <SplashScreen Include="Assets\Brand\Aravals Stream Splash.png" />
     <ProjectReference Include="..\AravalsStream.Core\AravalsStream.Core.csproj" />
     <ProjectReference Include="..\AravalsStream.Capture\AravalsStream.Capture.csproj" />
   </ItemGroup>

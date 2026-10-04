@@ -6,7 +6,7 @@
 #ifndef MyPublishDir
   #define MyPublishDir "..\publish"
 #endif
-#define MyAppPublisher "Aravals"
+#define MyAppPublisher "Aravals Inc."
 #define MyAppExeName "AravalsStream.App.exe"
 #define MyAppAssocName MyAppName + " Session"
 #define MyAppAssocExt ".aravals"

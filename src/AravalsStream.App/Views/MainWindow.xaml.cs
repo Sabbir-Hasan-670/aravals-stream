@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 using System.Text.Json;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -37,6 +38,10 @@ namespace AravalsStream.App.Views;
 
 public partial class MainWindow : Window
 {
+    private const uint WindowDisplayAffinityExcludeFromCapture = 0x11;
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool SetWindowDisplayAffinity(nint hwnd, uint affinity);
     private readonly ISceneCompositor _compositor;
     private readonly PerformanceMetricsService _performanceMetrics = new();
     private System.Windows.Threading.DispatcherTimer? _uiTimer;
@@ -186,8 +191,13 @@ public partial class MainWindow : Window
         Loaded += MainWindow_Loaded;
         SourceInitialized += (_, _) =>
         {
-            var source = System.Windows.Interop.HwndSource.FromHwnd(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            var source = System.Windows.Interop.HwndSource.FromHwnd(hwnd);
             source?.AddHook(WndProc);
+            if (!SetWindowDisplayAffinity(hwnd, WindowDisplayAffinityExcludeFromCapture))
+                AppLog.Write("Capture", $"Could not exclude the app window from display capture (Win32 {Marshal.GetLastWin32Error()}).");
+            else
+                AppLog.Write("Capture", "The app window is excluded from display capture to prevent recursive previews.");
         };
         StateChanged += (_, _) => ApplyPerformanceProfile();
         Closing += MainWindow_Closing;
@@ -3119,8 +3129,11 @@ public partial class MainWindow : Window
         var profile = CurrentPerformanceProfile();
         compositor.PreviewVisible = profile.PreviewFps > 0;
         compositor.PreviewTargetFps = profile.PreviewFps;
-        compositor.CaptureTargetFps = hasActiveOutputs ? 60 : profile.PreviewFps;
-        compositor.SetCaptureSuspended(profile.PreviewFps == 0 && !hasActiveOutputs, ViewModel.Scenes);
+        compositor.CaptureTargetFps = hasActiveOutputs ? 60 : profile.PreviewFps > 0 ? profile.PreviewFps : 15;
+        // Keep physical sources alive while the workspace is minimized. Preview is
+        // hidden and throttled by the profile, but capture resumes without recreating
+        // DXGI/WGC devices when the window is restored.
+        compositor.SetCaptureSuspended(false, ViewModel.Scenes);
         if (_recording is RecordingService recording)
             recording.PerformanceMode = _loadedSettings.Performance.Mode == PerformanceMode.Auto && _hardwareClass == HardwareClass.Low
                 ? PerformanceMode.Eco : _loadedSettings.Performance.Mode;

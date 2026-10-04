@@ -7,7 +7,7 @@ public static class AppVersion
         .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
         .FirstOrDefault()?.InformationalVersion.Split('+')[0] ?? "unknown";
     public const string Name = "Aravals Stream";
-    public const string Publisher = "Aravals";
+    public const string Publisher = "Aravals Inc.";
     public static readonly string ReleaseChannel = Version.Contains('-') ? "Development" : "Stable";
     public static readonly DateTime BuildDate = DateTime.UtcNow;
 

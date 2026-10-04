@@ -1,0 +1,23 @@
+<Window x:Class="AravalsStream.App.Views.SplashWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="520" Height="360"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None" ResizeMode="NoResize"
+        ShowInTaskbar="False" ShowActivated="False"
+        Background="#080D18" AllowsTransparency="True">
+  <Border Margin="1" Background="#080D18" BorderBrush="#243449" BorderThickness="1" CornerRadius="18">
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+      <Image Source="pack://application:,,,/AravalsStream.App;component/Assets/Brand/Aravals%20Stream.png"
+             Width="136" Height="116" Stretch="Uniform" HorizontalAlignment="Center"/>
+      <TextBlock Text="ARAVALS STREAM" Margin="0,18,0,0"
+                 Foreground="#F4F8FF" FontFamily="Segoe UI" FontSize="24"
+                 FontWeight="Bold" HorizontalAlignment="Center"/>
+      <TextBlock Text="LIVE STREAMING STUDIO" Margin="0,8,0,0"
+                 Foreground="#8EA2BB" FontFamily="Segoe UI" FontSize="11"
+                 FontWeight="SemiBold" HorizontalAlignment="Center"/>
+      <ProgressBar Width="116" Height="3" Margin="0,26,0,0"
+                   IsIndeterminate="True" Foreground="#20D6AE" Background="#1B293A"/>
+    </StackPanel>
+  </Border>
+</Window>

@@ -33,7 +33,7 @@ public static class PerformancePolicy
         bool hidden, bool overloaded, bool hasActiveOutputs = true)
     {
         var mode = settings.Mode == PerformanceMode.Auto
-            ? hardware == HardwareClass.Low ? PerformanceMode.Eco : hardware == HardwareClass.High ? PerformanceMode.Quality : PerformanceMode.Balanced
+            ? hardware == HardwareClass.High ? PerformanceMode.Quality : PerformanceMode.Balanced
             : settings.Mode;
         var profile = mode switch
         {
@@ -41,7 +41,7 @@ public static class PerformancePolicy
             PerformanceMode.Quality => new PerformanceProfile(hasActiveOutputs ? 60 : 30, 60, 500, false),
             PerformanceMode.Custom => new PerformanceProfile(Math.Clamp(settings.CustomPreviewFps, 1, 60),
                 Math.Clamp(settings.CustomMeterRefreshHz, 30, 60), 1000, false),
-            _ => new PerformanceProfile(hasActiveOutputs ? 30 : 15, 30, 750, false)
+            _ => new PerformanceProfile(30, 30, 750, false)
         };
         if (hidden) return profile with { PreviewFps = 0, MeterRefreshHz = 2, StatsRefreshMilliseconds = 2000, ReducedAnimations = true };
         if (overloaded && settings.AutomaticProtection)
