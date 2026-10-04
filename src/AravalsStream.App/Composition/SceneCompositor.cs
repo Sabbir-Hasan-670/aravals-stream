@@ -75,6 +75,10 @@ public sealed class SceneCompositor : ISceneCompositor
                 {
                     displaySession.TargetFps = value;
                 }
+                if (feed.Session is IWindowCaptureSession windowSession)
+                {
+                    windowSession.TargetFps = value;
+                }
             }
         }
     }
@@ -203,11 +207,12 @@ public sealed class SceneCompositor : ISceneCompositor
     private IVideoCaptureSession StartWindow(CaptureResource resource)
     {
         var window = _windows.EnumerateWindows().FirstOrDefault(w => w.Id == resource.DeviceId &&
-            (resource.WindowTitle is null || w.Title == resource.WindowTitle) &&
             (resource.ProcessName is null || w.ProcessName == resource.ProcessName))
-            ?? throw new InvalidOperationException("Window is closed or minimized.");
+            ?? throw new InvalidOperationException("Window is closed, minimized, or no longer available.");
         resource.DeviceId = window.Id;
-        return _windows.Start(window);
+        var session = _windows.Start(window);
+        session.TargetFps = _captureTargetFps;
+        return session;
     }
 
     public BitmapSource? FrameFor(SceneSource source) => source.HasVideo && KeyFor(source) is { } key && _feeds.TryGetValue(key, out var feed)

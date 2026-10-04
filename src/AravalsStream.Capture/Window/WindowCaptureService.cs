@@ -27,6 +27,7 @@ public interface IWindowCaptureService
 
 public interface IWindowCaptureSession : Video.IVideoCaptureSession
 {
+    int TargetFps { get; set; }
 }
 
 public sealed class WindowCaptureService : IWindowCaptureService
@@ -76,7 +77,6 @@ public sealed class WindowCaptureService : IWindowCaptureService
 
 internal sealed class GraphicsWindowSession : IWindowCaptureSession
 {
-    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsIconic(nint hwnd);
     [ComImport, Guid("3628E81B-3CAC-4C60-B7F4-23CE0E0C3356"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IGraphicsCaptureItemInterop
     {
@@ -95,16 +95,21 @@ internal sealed class GraphicsWindowSession : IWindowCaptureSession
     private readonly GraphicsCaptureItem _item;
     private readonly Direct3D11CaptureFramePool _pool;
     private readonly GraphicsCaptureSession _session;
-    private readonly nint _windowHandle;
     private Texture2D? _staging;
     private SizeInt32 _size;
     private bool _disposed;
+    private int _targetFps = 60;
+    private long _nextFrameTicks;
+    public int TargetFps
+    {
+        get => Volatile.Read(ref _targetFps);
+        set => Volatile.Write(ref _targetFps, Math.Clamp(value, 1, 120));
+    }
     public event EventHandler<Display.DisplayFrame>? FrameArrived;
     public event EventHandler<Exception>? CaptureFailed;
 
     public GraphicsWindowSession(WindowInfo window)
     {
-        _windowHandle = window.Handle;
         var interop = GraphicsCaptureItem.As<IGraphicsCaptureItemInterop>();
         var pointer = interop.CreateForWindow(window.Handle, ItemGuid);
         try { _item = GraphicsCaptureItem.FromAbi(pointer); }
@@ -125,11 +130,21 @@ internal sealed class GraphicsWindowSession : IWindowCaptureSession
     private void OnFrame(Direct3D11CaptureFramePool sender, object args)
     {
         if (_disposed) return;
-        if (IsIconic(_windowHandle))
-        { CaptureFailed?.Invoke(this, new InvalidOperationException("Window minimized.")); return; }
         try
         {
             using var frame = sender.TryGetNextFrame();
+            // Window Graphics Capture is event driven and may deliver frames faster
+            // than the compositor can use them (for example, a high-refresh browser).
+            // Drain every frame from the pool, but only perform the synchronous GPU
+            // readback at the app's configured capture rate.
+            var now = Stopwatch.GetTimestamp();
+            var interval = Stopwatch.Frequency / Math.Max(1, TargetFps);
+            while (true)
+            {
+                var next = Interlocked.Read(ref _nextFrameTicks);
+                if (now < next) return;
+                if (Interlocked.CompareExchange(ref _nextFrameTicks, now + interval, next) == next) break;
+            }
             var size = frame.ContentSize;
             if (size.Width <= 0 || size.Height <= 0) return;
             if (size.Width != _size.Width || size.Height != _size.Height)
