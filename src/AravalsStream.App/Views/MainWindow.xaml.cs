@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.IO;
 using System.Text.Json;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -38,10 +37,6 @@ namespace AravalsStream.App.Views;
 
 public partial class MainWindow : Window
 {
-    private const uint WindowDisplayAffinityExcludeFromCapture = 0x11;
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
-    private static extern bool SetWindowDisplayAffinity(nint hwnd, uint affinity);
     private readonly ISceneCompositor _compositor;
     private readonly PerformanceMetricsService _performanceMetrics = new();
     private System.Windows.Threading.DispatcherTimer? _uiTimer;
@@ -194,10 +189,6 @@ public partial class MainWindow : Window
             var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             var source = System.Windows.Interop.HwndSource.FromHwnd(hwnd);
             source?.AddHook(WndProc);
-            if (!SetWindowDisplayAffinity(hwnd, WindowDisplayAffinityExcludeFromCapture))
-                AppLog.Write("Capture", $"Could not exclude the app window from display capture (Win32 {Marshal.GetLastWin32Error()}).");
-            else
-                AppLog.Write("Capture", "The app window is excluded from display capture to prevent recursive previews.");
         };
         StateChanged += (_, _) => ApplyPerformanceProfile();
         Closing += MainWindow_Closing;
@@ -3243,8 +3234,10 @@ public partial class MainWindow : Window
                 _audioEngine.RestartResource(id, ViewModel.Scenes);
             });
         }
-        _recovery.Failed(id, DateTimeOffset.UtcNow);
-        foreach (var source in ViewModel.Scenes.SelectMany(s => s.Sources).Where(s => s.SourceReference == id))
+        var matchingSources = ViewModel.Scenes.SelectMany(s => s.Sources).Where(s => s.SourceReference == id).ToArray();
+        var isWindowCapture = matchingSources.Any(source => source.Type == SourceType.WindowCapture);
+        _recovery.Failed(id, DateTimeOffset.UtcNow, retrySoon: isWindowCapture);
+        foreach (var source in matchingSources)
         { source.Error = message; source.State = CaptureState.Unavailable; }
     }
 
@@ -3264,9 +3257,9 @@ public partial class MainWindow : Window
         if (due.Count == 0) return;
         foreach (var id in due)
         {
+            _recovery.Defer(id, DateTimeOffset.UtcNow);
             foreach (var source in ViewModel.Scenes.SelectMany(s => s.Sources).Where(s => s.SourceReference == id))
                 source.State = CaptureState.Recovering;
-            _recovery.Failed(id, DateTimeOffset.UtcNow);
         }
         _compositor.RefreshSources(ViewModel.Scenes);
         _audioEngine.RefreshSources(ViewModel.Scenes);

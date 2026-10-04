@@ -27,6 +27,21 @@ public sealed class Phase5Tests
     }
 
     [Fact]
+    public void WindowCaptureRecoveryRetriesQuicklyWithoutDoublingBackoff()
+    {
+        var recovery = new CaptureRecovery();
+        var id = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        recovery.Failed(id, now, retrySoon: true);
+        Assert.Empty(recovery.Due(now.AddMilliseconds(1999)));
+        Assert.Equal(id, Assert.Single(recovery.Due(now.AddSeconds(2))));
+
+        recovery.Defer(id, now.AddSeconds(2));
+        Assert.Empty(recovery.Due(now.AddMilliseconds(3999)));
+        Assert.Equal(id, Assert.Single(recovery.Due(now.AddSeconds(4))));
+    }
+
+    [Fact]
     public void RecommendedFormatUsesSupported720p30OverUnsupportedAssumptions()
     {
         var selected = CameraFormatSelector.Recommended([

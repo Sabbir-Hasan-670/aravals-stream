@@ -4,6 +4,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using System.Diagnostics;
 using System.IO;
+using System.Globalization;
 using AravalsStream.Capture.Camera;
 using AravalsStream.Capture.Display;
 using AravalsStream.Capture.Video;
@@ -206,8 +207,9 @@ public sealed class SceneCompositor : ISceneCompositor
 
     private IVideoCaptureSession StartWindow(CaptureResource resource)
     {
-        var window = _windows.EnumerateWindows().FirstOrDefault(w => w.Id == resource.DeviceId &&
-            (resource.ProcessName is null || w.ProcessName == resource.ProcessName))
+        if (!long.TryParse(resource.DeviceId, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var handleValue))
+            throw new InvalidOperationException("Window handle is invalid. Re-select the window capture source.");
+        var window = _windows.GetWindowInfo((nint)handleValue, expectedProcessName: resource.ProcessName)
             ?? throw new InvalidOperationException("Window is closed, minimized, or no longer available.");
         resource.DeviceId = window.Id;
         var session = _windows.Start(window);

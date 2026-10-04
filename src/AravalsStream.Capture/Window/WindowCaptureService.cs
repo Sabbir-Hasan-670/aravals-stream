@@ -22,6 +22,7 @@ public sealed record WindowInfo(nint Handle, string Title, string ProcessName, i
 public interface IWindowCaptureService
 {
     IReadOnlyList<WindowInfo> EnumerateWindows();
+    WindowInfo? GetWindowInfo(nint hwnd, bool allowMinimized = false, string? expectedProcessName = null);
     IWindowCaptureSession Start(WindowInfo window);
 }
 
@@ -37,24 +38,39 @@ public sealed class WindowCaptureService : IWindowCaptureService
         var windows = new List<WindowInfo>();
         Native.EnumWindows((hwnd, _) =>
         {
-            if (!Native.IsWindowVisible(hwnd) || Native.IsIconic(hwnd) || Native.GetWindow(hwnd, 4) != 0 ||
-                (Native.GetWindowLongPtr(hwnd, -20).ToInt64() & 0x80) != 0) return true;
-            var length = Native.GetWindowTextLength(hwnd);
-            if (length == 0) return true;
-            var title = new StringBuilder(length + 1);
-            Native.GetWindowText(hwnd, title, title.Capacity);
-            Native.GetWindowThreadProcessId(hwnd, out var processId);
-            if (processId == Environment.ProcessId) return true;
-            if (!Native.GetWindowRect(hwnd, out var bounds)) return true;
-            var width = bounds.Right - bounds.Left; var height = bounds.Bottom - bounds.Top;
-            if (width < 80 || height < 80) return true;
-            string processName;
-            try { processName = Process.GetProcessById((int)processId).ProcessName; }
-            catch { processName = "Unknown"; }
-            windows.Add(new WindowInfo(hwnd, title.ToString(), processName, width, height));
+            if (GetWindowInfo(hwnd) is { } window) windows.Add(window);
             return true;
         }, 0);
         return windows.OrderBy(w => w.ProcessName).ThenBy(w => w.Title).ToList();
+    }
+
+    public WindowInfo? GetWindowInfo(nint hwnd, bool allowMinimized = false, string? expectedProcessName = null)
+    {
+        if (hwnd == 0 || !Native.IsWindow(hwnd) || !Native.IsWindowVisible(hwnd) ||
+            (!allowMinimized && Native.IsIconic(hwnd)) || Native.GetWindow(hwnd, 4) != 0 ||
+            (Native.GetWindowLongPtr(hwnd, -20).ToInt64() & 0x80) != 0)
+            return null;
+        var length = Native.GetWindowTextLength(hwnd);
+        if (length <= 0) return null;
+        var title = new StringBuilder(length + 1);
+        Native.GetWindowText(hwnd, title, title.Capacity);
+        Native.GetWindowThreadProcessId(hwnd, out var processId);
+        if (processId == 0 || processId == Environment.ProcessId) return null;
+        string processName;
+        try { processName = Process.GetProcessById((int)processId).ProcessName; }
+        catch { processName = "Unknown"; }
+        if (!string.IsNullOrWhiteSpace(expectedProcessName) &&
+            !string.Equals(processName, expectedProcessName, StringComparison.OrdinalIgnoreCase))
+            return null;
+        var width = 0;
+        var height = 0;
+        if (Native.GetWindowRect(hwnd, out var bounds))
+        {
+            width = bounds.Right - bounds.Left;
+            height = bounds.Bottom - bounds.Top;
+        }
+        if (!allowMinimized && (width < 80 || height < 80)) return null;
+        return new WindowInfo(hwnd, title.ToString(), processName, width, height);
     }
 
     public IWindowCaptureSession Start(WindowInfo window) => new GraphicsWindowSession(window);
@@ -63,6 +79,7 @@ public sealed class WindowCaptureService : IWindowCaptureService
     {
         public delegate bool EnumCallback(nint hwnd, nint lParam);
         [DllImport("user32.dll")] public static extern bool EnumWindows(EnumCallback callback, nint lParam);
+        [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool IsWindow(nint hwnd);
         [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool IsWindowVisible(nint hwnd);
         [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool IsIconic(nint hwnd);
         [DllImport("user32.dll")] public static extern nint GetWindow(nint hwnd, uint command);
