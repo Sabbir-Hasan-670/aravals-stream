@@ -19,4 +19,4 @@ Release packaging does not deploy websites, Relay servers or infrastructure. The
 
 Windows Desktop checks published GitHub Releases at startup and every six hours when automatic checks are enabled. The header also has a manual **Check Updates** button. A new release appears in an in-app notification; **Download and install** fetches the Windows installer, verifies it against the release's `SHA256SUMS.txt`, launches Inno Setup, and closes the Desktop after stopping active outputs. No browser download is needed after an updater-capable Desktop version is installed.
 
-Stable installations receive stable releases by default. The General setting **Include development releases** opts into prereleases; development builds include them automatically. This updater is for the Windows workstation installer only. Existing installations without the updater need one normal installer upgrade before in-app updates become available.
+The Desktop updater checks stable releases only. This updater is for the Windows workstation installer only. Existing installations without the updater need one normal installer upgrade before in-app updates become available.

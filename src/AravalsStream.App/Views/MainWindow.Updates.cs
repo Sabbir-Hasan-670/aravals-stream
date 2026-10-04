@@ -39,9 +39,7 @@ public partial class MainWindow
         UpdateButton.Content = "CHECKING…";
         try
         {
-            var includeDevelopment = AppVersion.ReleaseChannel == "Development" ||
-                _loadedSettings.General.IncludeDevelopmentUpdates;
-            _availableUpdate = await _updateService.CheckAsync(AppVersion.Version, includeDevelopment);
+            _availableUpdate = await _updateService.CheckAsync(AppVersion.Version, false);
             if (_availableUpdate is null)
             {
                 UpdateNotice.Visibility = Visibility.Collapsed;

@@ -351,16 +351,6 @@ public sealed class SettingsWindow : Window
         chkUpdates.Unchecked += (_, _) => _settings.General.CheckForUpdates = false;
         panel.Children.Add(chkUpdates);
 
-        var chkDevelopment = new CheckBox
-        {
-            Content = "Include development releases",
-            IsChecked = _settings.General.IncludeDevelopmentUpdates,
-            Margin = new Thickness(0, 0, 0, 15)
-        };
-        chkDevelopment.Checked += (_, _) => _settings.General.IncludeDevelopmentUpdates = true;
-        chkDevelopment.Unchecked += (_, _) => _settings.General.IncludeDevelopmentUpdates = false;
-        panel.Children.Add(chkDevelopment);
-
         return panel;
     }
 
