@@ -13,7 +13,11 @@ public sealed class AudioChannel : INotifyPropertyChanged
     private readonly AudioSyncBuffer _syncBuffer = new();
 
     public Guid Id { get; init; } = Guid.NewGuid();
-    public string Name { get; set; } = "Audio";
+    private string _name = "Audio";
+    private AudioFilterSettings _filters = new();
+    public string Name { get => _name; set { _name = value; Changed(); } }
+    public AudioFilterSettings Filters { get => Volatile.Read(ref _filters); set { Volatile.Write(ref _filters, value.Copy()); Changed(); } }
+    public AudioFilterProcessor FilterProcessor { get; } = new();
     public float Volume { get => _volume; set { _volume = Math.Clamp(value, 0, 2); Changed(); } }
     public bool Muted { get => _muted; set { _muted = value; Changed(); } }
     public bool Active { get => _active; set { _active = value; Changed(); } }
@@ -95,6 +99,7 @@ public sealed class AudioMixer : IAudioMixer
         // 1. Apply sync offset
         var synced = new float[samples.Length];
         channel.SyncBuffer.Process(samples, synced);
+        channel.FilterProcessor.Process(synced, channel.Filters);
 
         // 2. Global gain
         var globalGain = channel.Muted ? 0f : channel.Volume;

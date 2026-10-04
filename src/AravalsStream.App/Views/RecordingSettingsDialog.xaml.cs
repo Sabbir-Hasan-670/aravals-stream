@@ -96,25 +96,13 @@ public partial class RecordingSettingsDialog : Window
         EncoderCombo.SelectedIndex = selectedEncoderIdx;
 
         // 6. FPS
-        FpsCombo.SelectedIndex = _settings.Video.FrameRate <= 30 ? 1 : 0;
+        FpsCombo.Text = _settings.Video.FrameRate.ToString();
 
         // 7. Video Bitrate
-        VideoBitrateCombo.SelectedIndex = _settings.Video.BitrateKbps switch
-        {
-            >= 8000 => 0,
-            >= 6000 => 1,
-            >= 4500 => 2,
-            _ => 3
-        };
+        VideoBitrateCombo.Text = _settings.Video.BitrateKbps.ToString();
 
         // 8. Audio Bitrate
-        AudioBitrateCombo.SelectedIndex = _settings.Audio.BitrateKbps switch
-        {
-            >= 320 => 0,
-            >= 192 => 1,
-            >= 160 => 2,
-            _ => 3
-        };
+        AudioBitrateCombo.Text = _settings.Audio.BitrateKbps.ToString();
     }
 
     private void BrowseFolder_Click(object sender, RoutedEventArgs e)
@@ -134,6 +122,13 @@ public partial class RecordingSettingsDialog : Window
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
+        if (!int.TryParse(FpsCombo.Text, out var frameRate) || frameRate < 1 || frameRate > 60)
+        { MessageBox.Show(this, "Frame rate must be from 1 to 60 FPS.", "Invalid frame rate"); return; }
+        if (!int.TryParse(VideoBitrateCombo.Text, out var videoBitrate) || videoBitrate < 100 || videoBitrate > 200000 ||
+            !int.TryParse(AudioBitrateCombo.Text, out var audioBitrate) || audioBitrate < 32 || audioBitrate > 512)
+        { MessageBox.Show(this, "Video bitrate must be 100–200000 kbps; audio bitrate must be 32–512 kbps.", "Invalid bitrate"); return; }
+        if (string.IsNullOrWhiteSpace(FolderInput.Text) || !Path.IsPathFullyQualified(FolderInput.Text.Trim()))
+        { MessageBox.Show(this, "Choose a full recording folder path.", "Invalid recording folder"); return; }
         _settings.OutputDirectory = FolderInput.Text.Trim();
 
         _settings.Mode = ModeCombo.SelectedIndex switch
@@ -159,23 +154,11 @@ public partial class RecordingSettingsDialog : Window
             }
         }
 
-        _settings.Video.FrameRate = FpsCombo.SelectedIndex == 1 ? 30 : 60;
+        _settings.Video.FrameRate = frameRate;
 
-        _settings.Video.BitrateKbps = VideoBitrateCombo.SelectedIndex switch
-        {
-            0 => 8000,
-            1 => 6000,
-            2 => 4500,
-            _ => 3000
-        };
+        _settings.Video.BitrateKbps = videoBitrate;
 
-        _settings.Audio.BitrateKbps = AudioBitrateCombo.SelectedIndex switch
-        {
-            0 => 320,
-            1 => 192,
-            2 => 160,
-            _ => 128
-        };
+        _settings.Audio.BitrateKbps = audioBitrate;
 
         DialogResult = true;
         Close();

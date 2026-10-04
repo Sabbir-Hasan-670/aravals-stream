@@ -20,13 +20,18 @@ public partial class SourcePicker : Window
     public CameraFormat? PreferredCaptureDeviceFormat => FormatList.SelectedItem as CameraFormat;
     private readonly SourceType? _initialType;
     private readonly CameraFormat? _initialFormat;
+    private readonly string? _initialDeviceId;
+    private readonly string? _defaultMicrophoneId, _defaultDesktopAudioId;
 
-    public SourcePicker(SourceType? initialType = null, CameraFormat? initialFormat = null)
+    public SourcePicker(SourceType? initialType = null, CameraFormat? initialFormat = null, string? initialDeviceId = null,
+        bool lockType = false, string? defaultMicrophoneId = null, string? defaultDesktopAudioId = null)
     {
         InitializeComponent();
         DarkWindowChrome.Apply(this);
         _initialType = initialType;
         _initialFormat = initialFormat;
+        _initialDeviceId = initialDeviceId; _defaultMicrophoneId = defaultMicrophoneId; _defaultDesktopAudioId = defaultDesktopAudioId;
+        TypeList.IsEnabled = !lockType;
         TypeList.ItemsSource = new[]
         {
             new SourceChoice(SourceType.DisplayCapture, "Display Capture"),
@@ -80,7 +85,9 @@ public partial class SourcePicker : Window
                 _ => []
             };
             DeviceList.ItemsSource = devices;
-            if (devices.Length > 0) DeviceList.SelectedIndex = 0;
+            var preferredId = _initialDeviceId ?? (SelectedType == SourceType.AudioInput ? _defaultMicrophoneId : SelectedType == SourceType.AudioOutput ? _defaultDesktopAudioId : null);
+            DeviceList.SelectedItem = devices.FirstOrDefault(device => (device switch
+            { AudioDeviceInfo a => a.Id, CameraInfo c => c.Id, DisplayInfo d => d.Id, WindowInfo w => w.Id, _ => null }) == preferredId) ?? devices.FirstOrDefault();
         }
         catch (Exception ex) { AravalsStream.Core.Services.AppLog.Write("SourcePicker", $"Enumeration failed for {SelectedType}: {ex}"); MessageBox.Show(this, ex.Message, "Device enumeration failed"); }
     }

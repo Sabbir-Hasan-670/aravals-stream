@@ -62,7 +62,17 @@ public sealed class SceneCompositor : ISceneCompositor
     private readonly Dictionary<string, (long Ticks, long Count)> _rateWindows = [];
     private bool _disposed;
     private bool _captureSuspended;
-    public bool PreviewVisible { get; set; } = true;
+    private bool _previewVisible = true;
+    public bool PreviewVisible
+    {
+        get => _previewVisible;
+        set
+        {
+            var restoring = value && !_previewVisible;
+            _previewVisible = value;
+            if (restoring) RestoreLatestPreviews();
+        }
+    }
     public int PreviewTargetFps { get; set; } = 30;
     public int CaptureTargetFps
     {
@@ -209,8 +219,8 @@ public sealed class SceneCompositor : ISceneCompositor
     {
         if (!long.TryParse(resource.DeviceId, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var handleValue))
             throw new InvalidOperationException("Window handle is invalid. Re-select the window capture source.");
-        var window = _windows.GetWindowInfo((nint)handleValue, expectedProcessName: resource.ProcessName)
-            ?? throw new InvalidOperationException("Window is closed, minimized, or no longer available.");
+        var window = _windows.GetWindowInfo((nint)handleValue, allowMinimized: true, expectedProcessName: resource.ProcessName)
+            ?? throw new InvalidOperationException("Window is closed or no longer available.");
         resource.DeviceId = window.Id;
         var session = _windows.Start(window);
         session.TargetFps = _captureTargetFps;
@@ -219,6 +229,23 @@ public sealed class SceneCompositor : ISceneCompositor
 
     public BitmapSource? FrameFor(SceneSource source) => source.HasVideo && KeyFor(source) is { } key && _feeds.TryGetValue(key, out var feed)
         ? feed.Bitmap : null;
+
+    private void RestoreLatestPreviews()
+    {
+        if (!_dispatcher.CheckAccess()) { _dispatcher.BeginInvoke(RestoreLatestPreviews); return; }
+        foreach (var (key, feed) in _feeds)
+        {
+            lock (feed.FrameLock)
+            {
+                using var reader = feed.RawFrames?.AcquireLatest();
+                if (reader is null) continue;
+                if (feed.Bitmap is null || feed.Bitmap.PixelWidth != feed.RawWidth || feed.Bitmap.PixelHeight != feed.RawHeight)
+                    feed.Bitmap = new WriteableBitmap(feed.RawWidth, feed.RawHeight, 96, 96, PixelFormats.Bgra32, null);
+                feed.Bitmap.WritePixels(new Int32Rect(0, 0, feed.RawWidth, feed.RawHeight), reader.Buffer, feed.RawStride, 0);
+            }
+            FrameReady?.Invoke(key);
+        }
+    }
 
     public BitmapSource? OverlayFrameFor(SourceType type, OutputMode mode) =>
         _overlayBitmaps.TryGetValue((type, mode), out var bitmap) ? bitmap : null;

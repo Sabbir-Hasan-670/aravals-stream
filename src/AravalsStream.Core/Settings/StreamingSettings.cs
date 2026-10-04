@@ -2,6 +2,7 @@ namespace AravalsStream.Core.Settings;
 
 public sealed class StreamingSettings
 {
+    public int DefaultVideoBitrateKbps { get; set; } = 6000;
     public string DefaultEncoder { get; set; } = "auto";
     public int DefaultKeyframeIntervalSeconds { get; set; } = 2;
     public int DefaultAudioBitrateKbps { get; set; } = 160;

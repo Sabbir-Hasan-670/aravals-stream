@@ -118,6 +118,8 @@ internal sealed class GraphicsWindowSession : IWindowCaptureSession
     private bool _disposed;
     private int _targetFps = 60;
     private long _nextFrameTicks;
+    private long _lastTransientLog;
+    private int _consecutiveFrameFailures;
     public int TargetFps
     {
         get => Volatile.Read(ref _targetFps);
@@ -153,6 +155,7 @@ internal sealed class GraphicsWindowSession : IWindowCaptureSession
             try
             {
                 using var frame = sender.TryGetNextFrame();
+                if (frame is null) return;
                 // Window Graphics Capture is event driven and may deliver frames faster
                 // than the compositor can use them (for example, a high-refresh browser).
                 // Drain every frame from the pool, but only perform the synchronous GPU
@@ -169,19 +172,27 @@ internal sealed class GraphicsWindowSession : IWindowCaptureSession
                 if (size.Width <= 0 || size.Height <= 0) return;
                 if (size.Width != _size.Width || size.Height != _size.Height)
                 {
+                    // A resize frame still owns a surface from the old pool. Release
+                    // it before recreating, then wait for a surface of the new size.
+                    frame.Dispose();
                     _size = size;
                     _staging?.Dispose(); _staging = null;
                     sender.Recreate(_winrtDevice, DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, size);
+                    return;
                 }
-                _staging ??= new Texture2D(_device, new Texture2DDescription
-                {
-                    Width = size.Width, Height = size.Height, MipLevels = 1, ArraySize = 1,
-                    Format = Format.B8G8R8A8_UNorm, SampleDescription = new SampleDescription(1, 0),
-                    Usage = ResourceUsage.Staging, CpuAccessFlags = CpuAccessFlags.Read
-                });
                 var access = frame.Surface.As<IDirect3DDxgiInterfaceAccess>();
                 var texturePointer = access.GetInterface(TextureGuid);
                 using var texture = new Texture2D(texturePointer);
+                var description = texture.Description;
+                if (description.Width < size.Width || description.Height < size.Height) return;
+                if (_staging is not null && (_staging.Description.Width != description.Width || _staging.Description.Height != description.Height))
+                { _staging.Dispose(); _staging = null; }
+                _staging ??= new Texture2D(_device, new Texture2DDescription
+                {
+                    Width = description.Width, Height = description.Height, MipLevels = 1, ArraySize = 1,
+                    Format = Format.B8G8R8A8_UNorm, SampleDescription = new SampleDescription(1, 0),
+                    Usage = ResourceUsage.Staging, CpuAccessFlags = CpuAccessFlags.Read
+                });
                 _device.ImmediateContext.CopyResource(texture, _staging);
                 var mapped = _device.ImmediateContext.MapSubresource(_staging, 0, MapMode.Read, SharpDX.Direct3D11.MapFlags.None);
                 try
@@ -194,6 +205,16 @@ internal sealed class GraphicsWindowSession : IWindowCaptureSession
                     if (FrameArrived is { } consumer) consumer.Invoke(this, result); else result.Dispose();
                 }
                 finally { _device.ImmediateContext.UnmapSubresource(_staging, 0); }
+                _consecutiveFrameFailures = 0;
+            }
+            catch (SharpDXException ex) when (!_disposed && ex.ResultCode != SharpDX.DXGI.ResultCode.DeviceRemoved && ex.ResultCode != SharpDX.DXGI.ResultCode.DeviceReset)
+            {
+                // Transient resize/readback failures must not tear down a healthy
+                // WGC session or remove its capture border while a window is covered.
+                var now = Stopwatch.GetTimestamp();
+                if (now - _lastTransientLog > Stopwatch.Frequency * 5)
+                { _lastTransientLog = now; AravalsStream.Core.Services.AppLog.Write("Capture", $"Window frame skipped: {ex.Message}"); }
+                if (++_consecutiveFrameFailures >= 20) CaptureFailed?.Invoke(this, ex);
             }
             catch (Exception ex) when (!_disposed) { CaptureFailed?.Invoke(this, ex); }
         }

@@ -52,10 +52,7 @@
         </StackPanel>
         <StackPanel Grid.Column="2">
           <TextBlock Text="FRAME RATE" Style="{StaticResource TinyText}" Margin="0,0,0,6"/>
-          <ComboBox x:Name="FpsCombo">
-            <ComboBoxItem Content="60 FPS (Smooth)"/>
-            <ComboBoxItem Content="30 FPS (Standard)"/>
-          </ComboBox>
+          <TextBox x:Name="FpsCombo" ToolTip="Custom frame rate from 1 to 60 FPS"/>
         </StackPanel>
       </Grid>
 
@@ -68,21 +65,11 @@
         </Grid.ColumnDefinitions>
         <StackPanel Grid.Column="0">
           <TextBlock Text="VIDEO BITRATE" Style="{StaticResource TinyText}" Margin="0,0,0,6"/>
-          <ComboBox x:Name="VideoBitrateCombo">
-            <ComboBoxItem Content="8000 kbps (Very High)"/>
-            <ComboBoxItem Content="6000 kbps (High — Default)"/>
-            <ComboBoxItem Content="4500 kbps (Balanced)"/>
-            <ComboBoxItem Content="3000 kbps (Medium)"/>
-          </ComboBox>
+          <TextBox x:Name="VideoBitrateCombo" ToolTip="Custom video bitrate in kbps (100–200000)"/>
         </StackPanel>
         <StackPanel Grid.Column="2">
           <TextBlock Text="AUDIO BITRATE" Style="{StaticResource TinyText}" Margin="0,0,0,6"/>
-          <ComboBox x:Name="AudioBitrateCombo">
-            <ComboBoxItem Content="320 kbps (Studio)"/>
-            <ComboBoxItem Content="192 kbps (High Quality)"/>
-            <ComboBoxItem Content="160 kbps (Standard)"/>
-            <ComboBoxItem Content="128 kbps (Compact)"/>
-          </ComboBox>
+          <TextBox x:Name="AudioBitrateCombo" ToolTip="Custom audio bitrate in kbps (32–512)"/>
         </StackPanel>
       </Grid>
 

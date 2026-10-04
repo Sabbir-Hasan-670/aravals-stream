@@ -67,6 +67,8 @@ public sealed class SceneAudioEngine : IDisposable
                 };
                 Channels.Add(channel);
             }
+            channel.Name = resource.Name;
+            channel.Filters = resource.AudioFilters;
             try
             {
                 if (resource.Type == SourceType.RemotePc)

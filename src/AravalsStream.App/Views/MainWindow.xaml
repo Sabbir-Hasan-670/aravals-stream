@@ -114,7 +114,7 @@
         <Border Grid.Row="2" Style="{StaticResource Panel}" Padding="12">
           <Grid><Grid.RowDefinitions><RowDefinition Height="38"/><RowDefinition Height="*"/></Grid.RowDefinitions>
             <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="SOURCES" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" Margin="5,0,0,0"/><Button Grid.Column="1" Content="+" Click="AddSource_Click" Style="{StaticResource IconButton}" ToolTip="Add source"/></Grid>
-            <ListBox x:Name="SourceList" Grid.Row="1" ItemsSource="{Binding SelectedScene.Sources}" ItemTemplate="{StaticResource SourceRowTemplate}" SelectionChanged="SourceList_SelectionChanged" Button.Click="SourceList_ButtonClick" MouseRightButtonUp="SourceList_MouseRightButtonUp" KeyDown="SourceList_KeyDown" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox x:Name="SourceList" Grid.Row="1" ItemsSource="{Binding SelectedScene.Sources}" ItemTemplate="{StaticResource SourceRowTemplate}" SelectionChanged="SourceList_SelectionChanged" Button.Click="SourceList_ButtonClick" MouseRightButtonUp="SourceList_MouseRightButtonUp" KeyDown="SourceList_KeyDown" PreviewMouseLeftButtonDown="SourceDrag_Start" PreviewMouseMove="SourceDrag_Move" AllowDrop="True" DragOver="SourceDrag_Over" Drop="SourceDrag_Drop" ToolTip="Drag rows to reorder. Lower rows are drawn above earlier rows." ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
               <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem">
                   <Setter Property="Padding" Value="0"/>

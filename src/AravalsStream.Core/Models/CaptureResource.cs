@@ -16,6 +16,7 @@ public sealed class CaptureResource
     public bool FollowSystemDefault { get; set; }
     public float Volume { get; set; } = 1;
     public bool Muted { get; set; }
+    public AravalsStream.Core.Audio.AudioFilterSettings AudioFilters { get; set; } = new();
     public string? RemoteDeviceId { get; set; }
     public string? RemoteHost { get; set; }
     public string? RemoteSecretReference { get; set; }

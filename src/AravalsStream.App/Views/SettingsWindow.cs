@@ -2,6 +2,10 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Net.Http;
+using System.Text.Json;
+using AravalsStream.Capture.Audio;
+using AravalsStream.Core.Audio;
+using AravalsStream.Core.Models;
 using AravalsStream.App.Services;
 using AravalsStream.Capture.Display;
 using AravalsStream.Core.Accounts;
@@ -24,6 +28,13 @@ public sealed class SettingsWindow : Window
 {
     private readonly AppSettings _settings;
     private readonly PerformanceSettings _performanceDraft;
+    private readonly RecordingSettings _recordingDraft;
+    private readonly AudioSettings _audioDraft;
+    private readonly StreamingSettings _streamingDraft;
+    private readonly Dictionary<string, (string Text, int Min, int Max, Action<int> Set)> _numbers = [];
+    private readonly Dictionary<Guid, AudioDeviceInfo> _deviceChanges = [];
+    private readonly Dictionary<Guid, AudioFilterSettings> _filterChanges = [];
+    public IReadOnlyCollection<Guid> ChangedAudioResources => _deviceChanges.Keys.Concat(_filterChanges.Keys).Distinct().ToArray();
     private readonly FfmpegResolution _ffmpeg;
     private readonly IReadOnlyList<EncoderInfo> _encoders;
     private readonly DpapiSecretStorage? _secrets;
@@ -52,6 +63,9 @@ public sealed class SettingsWindow : Window
     {
         Owner = owner;
         _settings = settings;
+        _recordingDraft = JsonSerializer.Deserialize<RecordingSettings>(JsonSerializer.Serialize(settings.Recording))!;
+        _audioDraft = JsonSerializer.Deserialize<AudioSettings>(JsonSerializer.Serialize(settings.Audio))!;
+        _streamingDraft = JsonSerializer.Deserialize<StreamingSettings>(JsonSerializer.Serialize(settings.Streaming))!;
         _performanceDraft = new PerformanceSettings
         {
             Mode = settings.Performance.Mode,
@@ -134,7 +148,7 @@ public sealed class SettingsWindow : Window
         cancelBtn.Click += (_, _) => Close();
 
         var saveBtn = new Button { Content = "SAVE", Width = 100, Height = 30, Style = (Style)FindResource("AccentButton") };
-        saveBtn.Click += (_, _) => { _settings.Performance = _performanceDraft; SettingsSaved = true; Close(); };
+        saveBtn.Click += (_, _) => SaveEditableSettings();
 
         footerPanel.Children.Add(cancelBtn);
         footerPanel.Children.Add(saveBtn);
@@ -1011,11 +1025,11 @@ public sealed class SettingsWindow : Window
 
         AddLabel(panel, "Default Hardware Encoder:");
         var encCombo = new ComboBox { Height = 28, Margin = new Thickness(0, 4, 0, 12) };
-        foreach (var enc in _encoders)
-        {
-            encCombo.Items.Add($"{enc.DisplayName} ({(enc.Available ? "Available" : "Unavailable")})");
-        }
-        encCombo.SelectedIndex = 0;
+        encCombo.Items.Add(new ComboBoxItem { Content = "Auto (recommended)", Tag = "auto" });
+        foreach (var encoder in _encoders.Where(e => e.Available))
+            encCombo.Items.Add(new ComboBoxItem { Content = encoder.DisplayName, Tag = encoder.Id });
+        encCombo.SelectedItem = encCombo.Items.Cast<ComboBoxItem>().FirstOrDefault(item => Equals(item.Tag, _streamingDraft.DefaultEncoder)) ?? encCombo.Items[0];
+        encCombo.SelectionChanged += (_, _) => _streamingDraft.DefaultEncoder = (string)((ComboBoxItem)encCombo.SelectedItem).Tag;
         panel.Children.Add(encCombo);
 
         return panel;
@@ -1028,18 +1042,27 @@ public sealed class SettingsWindow : Window
 
         AddLabel(panel, "Sample Rate: 48.0 kHz (Stereo, 2 Channels)");
         AddLabel(panel, "Default Desktop Audio:");
-        var desktopCombo = new ComboBox { Height = 28, Margin = new Thickness(0, 4, 0, 12) };
-        desktopCombo.Items.Add("Default System Output (WASAPI Loopback)");
-        desktopCombo.SelectedIndex = 0;
-        panel.Children.Add(desktopCombo);
+        AddDeviceChoice(panel, false, _audioDraft.DefaultDesktopAudioId, d => _audioDraft.DefaultDesktopAudioId = d.Id);
 
         AddLabel(panel, "Default Microphone:");
-        var micCombo = new ComboBox { Height = 28, Margin = new Thickness(0, 4, 0, 12) };
-        micCombo.Items.Add("Default System Microphone");
-        micCombo.SelectedIndex = 0;
-        panel.Children.Add(micCombo);
+        AddDeviceChoice(panel, true, _audioDraft.DefaultMicrophoneId, d => _audioDraft.DefaultMicrophoneId = d.Id);
+        AddSectionHeader(panel, "Existing Audio Sources");
+        AddLabel(panel, "Change a source device here. Volume, routing and filters are retained.");
+        foreach (var resource in _settings.CaptureResources.Where(r => r.Type is SourceType.AudioInput or SourceType.AudioOutput))
+        {
+            AddLabel(panel, resource.Name);
+            AddDeviceChoice(panel, resource.Type == SourceType.AudioInput,
+                _deviceChanges.GetValueOrDefault(resource.Id)?.Id ?? resource.DeviceId, d => _deviceChanges[resource.Id] = d);
+            var filters = new Button { Content = "Audio filters…", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 12), Padding = new Thickness(10, 5, 10, 5) };
+            filters.Click += (_, _) =>
+            {
+                var dialog = new AudioFiltersDialog(this, resource.Name, _filterChanges.GetValueOrDefault(resource.Id) ?? resource.AudioFilters);
+                if (dialog.ShowDialog() == true) _filterChanges[resource.Id] = dialog.Result.Copy();
+            };
+            panel.Children.Add(filters);
+        }
 
-        return panel;
+        return new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
 
     private UIElement BuildRecordingTab()
@@ -1047,42 +1070,131 @@ public sealed class SettingsWindow : Window
         var panel = new StackPanel();
         AddSectionHeader(panel, "Local Recording Defaults");
 
-        AddLabel(panel, $"Recording Folder: {_settings.Recording.OutputDirectory}");
-        AddLabel(panel, $"Container: {_settings.Recording.Container.ToUpperInvariant()}");
-        AddLabel(panel, $"Target Bitrate: {_settings.Recording.Video.BitrateKbps} kbps");
-        AddLabel(panel, $"Target Frame Rate: {_settings.Recording.Video.FrameRate} FPS");
+        AddLabel(panel, "Recording folder:");
+        var folder = new TextBox { Text = _recordingDraft.OutputDirectory, Margin = new Thickness(0, 4, 0, 8) };
+        folder.TextChanged += (_, _) => _recordingDraft.OutputDirectory = folder.Text.Trim();
+        panel.Children.Add(folder);
+        var browse = new Button { Content = "Browse…", HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 0, 12) };
+        browse.Click += (_, _) =>
+        {
+            using var dialog = new System.Windows.Forms.FolderBrowserDialog { Description = "Recording save folder", UseDescriptionForTitle = true, SelectedPath = folder.Text };
+            if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK) folder.Text = dialog.SelectedPath;
+        };
+        panel.Children.Add(browse);
+        AddLabel(panel, "Container:");
+        var container = new ComboBox { ItemsSource = new[] { "mkv", "mp4" }, SelectedItem = _recordingDraft.Container, Margin = new Thickness(0, 4, 0, 12) };
+        container.SelectionChanged += (_, _) => _recordingDraft.Container = (string)container.SelectedItem;
+        panel.Children.Add(container);
+        AddLabel(panel, "Recording encoder:");
+        var encoder = new ComboBox { Margin = new Thickness(0, 4, 0, 12) };
+        encoder.Items.Add(new ComboBoxItem { Content = "Auto (recommended)", Tag = "auto" });
+        foreach (var item in _encoders.Where(e => e.Available)) encoder.Items.Add(new ComboBoxItem { Content = item.DisplayName, Tag = item.Id });
+        encoder.SelectedItem = encoder.Items.Cast<ComboBoxItem>().FirstOrDefault(item => Equals(item.Tag, _recordingDraft.Video.EncoderId)) ?? encoder.Items[0];
+        encoder.SelectionChanged += (_, _) => _recordingDraft.Video.EncoderId = (string)((ComboBoxItem)encoder.SelectedItem).Tag;
+        panel.Children.Add(encoder);
+        AddNumber(panel, "Recording video bitrate (kbps)", "record-video", _recordingDraft.Video.BitrateKbps, 100, 200000, v => _recordingDraft.Video.BitrateKbps = v);
+        AddNumber(panel, "Recording audio bitrate (kbps)", "record-audio", _recordingDraft.Audio.BitrateKbps, 32, 512, v => _recordingDraft.Audio.BitrateKbps = v);
+        AddNumber(panel, "Recording frame rate (FPS)", "record-fps", _recordingDraft.Video.FrameRate, 1, 60, v => _recordingDraft.Video.FrameRate = v);
+        AddLabel(panel, "Changes apply to the next recording.");
 
-        return panel;
+        return new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
 
     private UIElement BuildStreamingTab()
     {
         var panel = new StackPanel();
         AddSectionHeader(panel, "Streaming & Network Adaptation");
+        AddNumber(panel, "Default video bitrate for new destinations (kbps)", "stream-video", _streamingDraft.DefaultVideoBitrateKbps, 500, 100000, v => _streamingDraft.DefaultVideoBitrateKbps = v);
+        AddNumber(panel, "Default audio bitrate for new destinations (kbps)", "stream-audio", _streamingDraft.DefaultAudioBitrateKbps, 32, 320, v => _streamingDraft.DefaultAudioBitrateKbps = v);
+        foreach (var group in _settings.DestinationGroups)
+        {
+            AddSectionHeader(panel, group.Name);
+            foreach (var destination in new[] { group.Horizontal, group.Vertical })
+            {
+                if (destination.Status is not (DestinationStatus.Offline or DestinationStatus.Disabled or DestinationStatus.Error))
+                { AddLabel(panel, $"{destination.OutputMode}: stop this output before changing bitrate."); continue; }
+                AddNumber(panel, $"{destination.OutputMode} video bitrate (kbps)", $"dest-video-{destination.Id}", destination.VideoBitrateKbps, 500, 100000, v => destination.VideoBitrateKbps = v);
+                AddNumber(panel, $"{destination.OutputMode} audio bitrate (kbps)", $"dest-audio-{destination.Id}", destination.AudioBitrateKbps, 32, 320, v => destination.AudioBitrateKbps = v);
+            }
+        }
 
         var chkAdapt = new CheckBox
         {
             Content = "Enable Adaptive Bitrate (Reduce bitrate during network congestion)",
-            IsChecked = _settings.Streaming.AdaptiveBitrateDefault,
+            IsChecked = _streamingDraft.AdaptiveBitrateDefault,
             Margin = new Thickness(0, 10, 0, 10)
         };
-        chkAdapt.Checked += (_, _) => _settings.Streaming.AdaptiveBitrateDefault = true;
-        chkAdapt.Unchecked += (_, _) => _settings.Streaming.AdaptiveBitrateDefault = false;
+        chkAdapt.Checked += (_, _) => _streamingDraft.AdaptiveBitrateDefault = true;
+        chkAdapt.Unchecked += (_, _) => _streamingDraft.AdaptiveBitrateDefault = false;
         panel.Children.Add(chkAdapt);
 
         var chkRecover = new CheckBox
         {
             Content = "Enable Auto-Recovery (Cautiously increase bitrate when network stabilizes)",
-            IsChecked = _settings.Streaming.AutoRecoverBitrateDefault,
+            IsChecked = _streamingDraft.AutoRecoverBitrateDefault,
             Margin = new Thickness(0, 0, 0, 15)
         };
-        chkRecover.Checked += (_, _) => _settings.Streaming.AutoRecoverBitrateDefault = true;
-        chkRecover.Unchecked += (_, _) => _settings.Streaming.AutoRecoverBitrateDefault = false;
+        chkRecover.Checked += (_, _) => _streamingDraft.AutoRecoverBitrateDefault = true;
+        chkRecover.Unchecked += (_, _) => _streamingDraft.AutoRecoverBitrateDefault = false;
         panel.Children.Add(chkRecover);
 
         AddLabel(panel, $"Bandwidth Warning Threshold: {_settings.Streaming.BandwidthWarningThresholdMbps} Mbps");
 
-        return panel;
+        return new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+    }
+
+    private void AddNumber(StackPanel panel, string label, string key, int value, int min, int max, Action<int> set)
+    {
+        AddLabel(panel, label);
+        var text = _numbers.TryGetValue(key, out var previous) ? previous.Text : value.ToString();
+        var input = new TextBox { Text = text, Margin = new Thickness(0, 4, 0, 12) };
+        _numbers[key] = (text, min, max, set);
+        input.TextChanged += (_, _) => _numbers[key] = (input.Text, min, max, set);
+        panel.Children.Add(input);
+    }
+
+    private void AddDeviceChoice(StackPanel panel, bool input, string? selectedId, Action<AudioDeviceInfo> set)
+    {
+        try
+        {
+            var devices = new WasapiAudioCaptureService().Enumerate(input).ToList();
+            selectedId ??= input ? WasapiAudioCaptureService.DefaultInputId : WasapiAudioCaptureService.DefaultOutputId;
+            if (devices.All(d => d.Id != selectedId)) devices.Add(new AudioDeviceInfo(selectedId, "Previously selected device (disconnected)", input, false));
+            var items = devices.Select(device => new ComboBoxItem { Content = device.Label, Tag = device }).ToArray();
+            var combo = new ComboBox { ItemsSource = items, SelectedItem = items.First(item => ((AudioDeviceInfo)item.Tag).Id == selectedId), Margin = new Thickness(0, 4, 0, 12) };
+            combo.SelectionChanged += (_, _) => { if (combo.SelectedItem is ComboBoxItem { Tag: AudioDeviceInfo device }) set(device); };
+            panel.Children.Add(combo);
+        }
+        catch (Exception ex) { AddLabel(panel, $"Could not list audio devices: {ex.Message}"); }
+    }
+
+    private void SaveEditableSettings()
+    {
+        var numbers = new List<(Action<int> Set, int Value)>();
+        foreach (var (key, field) in _numbers)
+        {
+            if (!int.TryParse(field.Text, out var value) || value < field.Min || value > field.Max)
+            { MessageBox.Show(this, $"{key}: enter a whole number from {field.Min} to {field.Max}.", "Invalid setting"); return; }
+            numbers.Add((field.Set, value));
+        }
+        if (string.IsNullOrWhiteSpace(_recordingDraft.OutputDirectory) || !System.IO.Path.IsPathFullyQualified(_recordingDraft.OutputDirectory) || _recordingDraft.OutputDirectory.IndexOfAny(System.IO.Path.GetInvalidPathChars()) >= 0)
+        { MessageBox.Show(this, "Choose a full recording folder path, such as D:\\Recordings.", "Invalid recording folder"); return; }
+        foreach (var (set, value) in numbers) set(value);
+        foreach (var resource in _settings.CaptureResources)
+        {
+            if (_deviceChanges.TryGetValue(resource.Id, out var device))
+            {
+                var oldName = resource.Name;
+                resource.DeviceId = device.Id;
+                resource.FollowSystemDefault = device.Id is WasapiAudioCaptureService.DefaultInputId or WasapiAudioCaptureService.DefaultOutputId;
+                resource.Name = $"{(device.IsInput ? "Microphone" : "Desktop Audio")} — {device.Name}";
+                foreach (var source in _settings.Scenes.SelectMany(s => s.Sources).Where(s => s.SourceReference == resource.Id && s.Name == oldName)) source.Name = resource.Name;
+            }
+            if (_filterChanges.TryGetValue(resource.Id, out var filters)) resource.AudioFilters = filters.Copy();
+        }
+        _settings.Recording = _recordingDraft; _settings.Audio = _audioDraft;
+        _settings.Streaming = _streamingDraft; _settings.Performance = _performanceDraft;
+        SettingsSaved = true; Close();
     }
 
     private UIElement BuildHotkeysTab()

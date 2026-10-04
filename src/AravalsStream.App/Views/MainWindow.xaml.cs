@@ -55,7 +55,7 @@ public partial class MainWindow : Window
     private readonly CaptureRecovery _recovery = new();
     private DeviceChangeMonitor? _deviceChanges;
     private readonly Dictionary<Guid, (string DeviceId, string? WindowTitle, string? ProcessName,
-        int CameraIndex, int Width, int Height, int Fps, string Subtype)> _previousBindings = [];
+        int CameraIndex, int Width, int Height, int Fps, string Subtype, string Name, bool FollowDefault)> _previousBindings = [];
     private OutputMode _activeMode = OutputMode.Horizontal;
     private bool _closingAfterSave;
     private Point _sceneDragStart;
@@ -149,6 +149,7 @@ public partial class MainWindow : Window
         });
         _audioEngine.SourceStarted += MarkActive;
         MixerList.ItemsSource = _audioEngine.Channels;
+        MixerList.AddHandler(Button.ClickEvent, new RoutedEventHandler(AudioMixerAction_Click));
         var meterTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
         _uiTimer = meterTimer;
         var lastRecoveryCheck = DateTimeOffset.MinValue;
@@ -1022,6 +1023,8 @@ public partial class MainWindow : Window
         dlg.ShowDialog();
         if (dlg.SettingsSaved)
         {
+            _recordingSettings = _loadedSettings.Recording;
+            foreach (var id in dlg.ChangedAudioResources) _audioEngine.RestartResource(id, ViewModel.Scenes);
             await SaveSettingsAsync();
             ConfigureWebhookRelay();
             if (_loadedSettings.TwitchAccount?.Connected != true) await StopTwitchServicesAsync();
@@ -1367,6 +1370,15 @@ public partial class MainWindow : Window
             await EditNativeFacebookMetadataAsync(original);
         _recording.RefreshFfmpeg(_recordingSettings.CustomFfmpegPath);
         var draft = original.Copy();
+        if (isNew)
+        {
+            foreach (var destination in new[] { draft.Horizontal, draft.Vertical })
+            {
+                destination.VideoBitrateKbps = _loadedSettings.Streaming.DefaultVideoBitrateKbps;
+                destination.AudioBitrateKbps = _loadedSettings.Streaming.DefaultAudioBitrateKbps;
+                destination.EncoderId = _loadedSettings.Streaming.DefaultEncoder;
+            }
+        }
         string? storedKey = original.StreamKeyReference == null ? null : _secrets.Get(original.StreamKeyReference);
         var dialog = new PlatformDestinationDialog(this, draft, _recording.AvailableEncoders, storedKey);
         AravalsStream.App.Controls.DarkWindowChrome.Apply(dialog);
@@ -2045,7 +2057,8 @@ public partial class MainWindow : Window
 
     private async void AddSource_Click(object sender, RoutedEventArgs e)
     {
-        var picker = new SourcePicker { Owner = this };
+        var picker = new SourcePicker(defaultMicrophoneId: _loadedSettings.Audio.DefaultMicrophoneId,
+            defaultDesktopAudioId: _loadedSettings.Audio.DefaultDesktopAudioId) { Owner = this };
         if (picker.ShowDialog() != true || ViewModel.SelectedScene is not { } scene) return;
         var type = picker.SelectedType;
         if (type == SourceType.RemotePc)
@@ -2263,6 +2276,12 @@ public partial class MainWindow : Window
             var changeDeviceItem = new MenuItem { Header = "Change Device" };
             changeDeviceItem.Click += (_, _) => PromptChangeDevice(source);
             menu.Items.Add(changeDeviceItem);
+        }
+        if (source.Type is SourceType.AudioInput or SourceType.AudioOutput)
+        {
+            var filtersItem = new MenuItem { Header = "Audio Filters…" };
+            filtersItem.Click += (_, _) => EditAudioFilters(source.SourceReference);
+            menu.Items.Add(filtersItem);
         }
         if (source.Type == SourceType.CaptureDevice)
         {
@@ -2498,10 +2517,10 @@ public partial class MainWindow : Window
         if (resource is null) return;
         var currentFormat = resource.FormatWidth > 0
             ? new CameraFormat(resource.FormatWidth, resource.FormatHeight, resource.FormatFrameRate, resource.FormatSubtype) : null;
-        var picker = new SourcePicker(source.Type, currentFormat) { Owner = this };
+        var picker = new SourcePicker(source.Type, currentFormat, resource.DeviceId, lockType: true) { Owner = this };
         if (picker.ShowDialog() != true || picker.SelectedDevice is null) return;
         _previousBindings[resource.Id] = (resource.DeviceId, resource.WindowTitle, resource.ProcessName,
-            resource.CameraIndex, resource.FormatWidth, resource.FormatHeight, resource.FormatFrameRate, resource.FormatSubtype);
+            resource.CameraIndex, resource.FormatWidth, resource.FormatHeight, resource.FormatFrameRate, resource.FormatSubtype, resource.Name, resource.FollowSystemDefault);
         resource.DeviceId = picker.SelectedDevice switch
         {
             DisplayInfo d => d.Id, WindowInfo w => w.Id, CameraInfo c => c.Id,
@@ -2517,7 +2536,12 @@ public partial class MainWindow : Window
             resource.FormatFrameRate = format?.FramesPerSecond ?? 0; resource.FormatSubtype = format?.Subtype ?? "";
         }
         if (picker.SelectedDevice is AudioDeviceInfo audio)
+        {
             resource.FollowSystemDefault = audio.Id is WasapiAudioCaptureService.DefaultInputId or WasapiAudioCaptureService.DefaultOutputId;
+            var oldName = resource.Name;
+            resource.Name = $"{(audio.IsInput ? "Microphone" : "Desktop Audio")} — {audio.Name}";
+            foreach (var item in ViewModel.Scenes.SelectMany(s => s.Sources).Where(s => s.SourceReference == resource.Id && s.Name == oldName)) item.Name = resource.Name;
+        }
         if (picker.SelectedDevice is DisplayInfo display)
             foreach (var item in ViewModel.Scenes.SelectMany(s => s.Sources).Where(s => s.SourceReference == resource.Id)) item.DisplayId = display.Id;
         foreach (var item in ViewModel.Scenes.SelectMany(s => s.Sources).Where(s => s.SourceReference == resource.Id))
@@ -2600,7 +2624,7 @@ public partial class MainWindow : Window
         if (ViewModel.SelectedScene is not { } scene) return;
         var index = scene.Sources.IndexOf(source);
         if (index < 0) return;
-        scene.Sources.Move(index, top ? 0 : scene.Sources.Count - 1);
+        scene.Sources.Move(index, top ? scene.Sources.Count - 1 : 0);
         RefreshPreviews();
         _ = SaveSettingsAsync();
     }
@@ -3228,6 +3252,9 @@ public partial class MainWindow : Window
             resource.DeviceId = previous.DeviceId; resource.WindowTitle = previous.WindowTitle; resource.ProcessName = previous.ProcessName;
             resource.CameraIndex = previous.CameraIndex; resource.FormatWidth = previous.Width; resource.FormatHeight = previous.Height;
             resource.FormatFrameRate = previous.Fps; resource.FormatSubtype = previous.Subtype;
+            var failedName = resource.Name;
+            resource.Name = previous.Name; resource.FollowSystemDefault = previous.FollowDefault;
+            foreach (var source in ViewModel.Scenes.SelectMany(s => s.Sources).Where(s => s.SourceReference == id && s.Name == failedName)) source.Name = resource.Name;
             Dispatcher.BeginInvoke(() =>
             {
                 _compositor.RestartResource(id, ViewModel.Scenes);
