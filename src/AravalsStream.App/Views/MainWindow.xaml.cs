@@ -84,7 +84,7 @@ public partial class MainWindow : Window
     private bool _lastIsMinimized;
     private MainViewModel ViewModel => (MainViewModel)DataContext;
     private SceneSource? SelectedSource => SourceList.SelectedItem as SceneSource;
-    private SourceTransform? ActiveTransform => SelectedSource is { } source
+    private SourceTransform? ActiveTransform => SelectedSource is { CanTransform: true } source
         ? _activeMode == OutputMode.Vertical ? source.VerticalTransform : source.HorizontalTransform : null;
 
     public MainWindow() : this(null, null, null, null) { }
@@ -149,7 +149,7 @@ public partial class MainWindow : Window
         });
         _audioEngine.SourceStarted += MarkActive;
         MixerList.ItemsSource = _audioEngine.Channels;
-        var meterTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+        var meterTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
         _uiTimer = meterTimer;
         var lastRecoveryCheck = DateTimeOffset.MinValue;
         var lastStatsUpdate = DateTimeOffset.MinValue;
@@ -167,9 +167,8 @@ public partial class MainWindow : Window
             if (now - lastMeterUpdate >= TimeSpan.FromSeconds(1.0 / profile.MeterRefreshHz))
             { lastMeterUpdate = now; _audioEngine.Mixer.DecayMeters(); if (IsVisible && WindowState != WindowState.Minimized) UpdateAudioBar(); }
             TickAlerts();
-            meterTimer.Interval = TimeSpan.FromMilliseconds(_lastRenderedAlert is null ?
-                (_streaming || _recording.State == RecordingState.Recording ? 100 : 250) :
-                profile.PreviewFps >= 60 ? 16 : profile.PreviewFps is 0 or <= 15 ? 66 : 33);
+            meterTimer.Interval = TimeSpan.FromMilliseconds(isMin ? 250 :
+                profile.MeterRefreshHz >= 60 ? 16 : 33);
             if (now - lastStatsUpdate >= TimeSpan.FromMilliseconds(profile.StatsRefreshMilliseconds))
             { lastStatsUpdate = now; if (IsVisible && WindowState != WindowState.Minimized) { UpdateStreamUi(); UpdateChatTargets(); UpdateAlertStats(); } UpdatePerformanceStatus(); }
             if (now - lastRecoveryCheck >= TimeSpan.FromSeconds(1))
@@ -192,7 +191,7 @@ public partial class MainWindow : Window
         };
         StateChanged += (_, _) => ApplyPerformanceProfile();
         Closing += MainWindow_Closing;
-        Closed += (_, _) => { meterTimer.Stop(); _alertSound?.Dispose(); _ = _unifiedChat.DisposeAsync(); _ = _relayClient.DisposeAsync(); _deviceChanges?.Dispose(); _ = _remoteDiscovery?.DisposeAsync(); _audioEngine.Dispose(); _remoteCapture.Dispose(); if (_streamingOutputGroups is not null) _ = _streamingOutputGroups.DisposeAsync(); _frameHub.Dispose(); _compositor.Dispose(); _recording.Dispose(); _performanceMetrics.Dispose(); };
+        Closed += (_, _) => { meterTimer.Stop(); _updateTimer.Stop(); _updateService.Dispose(); _alertSound?.Dispose(); _ = _unifiedChat.DisposeAsync(); _ = _relayClient.DisposeAsync(); _deviceChanges?.Dispose(); _ = _remoteDiscovery?.DisposeAsync(); _audioEngine.Dispose(); _remoteCapture.Dispose(); if (_streamingOutputGroups is not null) _ = _streamingOutputGroups.DisposeAsync(); _frameHub.Dispose(); _compositor.Dispose(); _recording.Dispose(); _performanceMetrics.Dispose(); };
         UpdatePreviewMode();
     }
 
@@ -288,6 +287,11 @@ public partial class MainWindow : Window
             }
 
             _loadedSettings = settings;
+            if (!_loadedSettings.General.UpdatePreferenceInitialized)
+            {
+                _loadedSettings.General.CheckForUpdates = true;
+                _loadedSettings.General.UpdatePreferenceInitialized = true;
+            }
             InitializeAlerts();
             _audioEngine.Mixer.Matrix.ImportSettings(_loadedSettings.AudioRoutes);
 
@@ -348,6 +352,8 @@ public partial class MainWindow : Window
 
             UpdateTikTokStatus();
             SwitchScene();
+            if (!Environment.GetCommandLineArgs().Any(a => a.StartsWith("--", StringComparison.Ordinal)))
+                InitializeUpdateChecks();
             AppLog.Write("Application", "Scene layout loaded");
             if (Environment.GetCommandLineArgs().Contains("--phase17b-soak", StringComparer.OrdinalIgnoreCase))
             {
@@ -1023,6 +1029,7 @@ public partial class MainWindow : Window
             UpdateTikTokStatus();
             _hotkeyService?.RegisterHotkeys(_loadedSettings.Hotkeys);
             ApplyPerformanceProfile();
+            ConfigureUpdateChecks();
         }
     }
 
@@ -2263,7 +2270,7 @@ public partial class MainWindow : Window
             menu.Items.Add(audioLink);
         }
 
-        var transformItem = new MenuItem { Header = "Transform" };
+        var transformItem = new MenuItem { Header = "Transform", IsEnabled = source.CanTransform };
         transformItem.Click += (_, _) => PromptEditTransform(source);
         menu.Items.Add(transformItem);
 
@@ -2279,15 +2286,15 @@ public partial class MainWindow : Window
 
         menu.Items.Add(new Separator());
 
-        var fitItem = new MenuItem { Header = "Fit to Canvas" };
+        var fitItem = new MenuItem { Header = "Fit to Canvas", IsEnabled = source.CanTransform };
         fitItem.Click += (_, _) => LayoutActionForSource(source, "fit");
         menu.Items.Add(fitItem);
 
-        var fillItem = new MenuItem { Header = "Fill Canvas" };
+        var fillItem = new MenuItem { Header = "Fill Canvas", IsEnabled = source.CanTransform };
         fillItem.Click += (_, _) => LayoutActionForSource(source, "fill");
         menu.Items.Add(fillItem);
 
-        var smartVerticalMenu = new MenuItem { Header = "Smart Vertical" };
+        var smartVerticalMenu = new MenuItem { Header = "Smart Vertical", IsEnabled = source.CanTransform };
         var smartCropItem = new MenuItem { Header = "Fullscreen Crop (9:16)" };
         smartCropItem.Click += (_, _) => LayoutActionForSource(source, "smart_crop");
         var smartBgItem = new MenuItem { Header = "Background + Full 16:9 Screen" };
@@ -2296,21 +2303,21 @@ public partial class MainWindow : Window
         smartVerticalMenu.Items.Add(smartBgItem);
         menu.Items.Add(smartVerticalMenu);
 
-        var centerItem = new MenuItem { Header = "Center" };
+        var centerItem = new MenuItem { Header = "Center", IsEnabled = source.CanTransform };
         centerItem.Click += (_, _) => LayoutActionForSource(source, "center");
         menu.Items.Add(centerItem);
 
-        var resetItem = new MenuItem { Header = "Reset Transform" };
+        var resetItem = new MenuItem { Header = "Reset Transform", IsEnabled = source.CanTransform };
         resetItem.Click += (_, _) => LayoutActionForSource(source, "reset");
         menu.Items.Add(resetItem);
 
         menu.Items.Add(new Separator());
 
-        var copyHtoV = new MenuItem { Header = "Copy Horizontal to Vertical" };
+        var copyHtoV = new MenuItem { Header = "Copy Horizontal to Vertical", IsEnabled = source.CanTransform };
         copyHtoV.Click += (_, _) => CopySourceLayout(source, OutputMode.Horizontal, OutputMode.Vertical);
         menu.Items.Add(copyHtoV);
 
-        var copyVtoH = new MenuItem { Header = "Copy Vertical to Horizontal" };
+        var copyVtoH = new MenuItem { Header = "Copy Vertical to Horizontal", IsEnabled = source.CanTransform };
         copyVtoH.Click += (_, _) => CopySourceLayout(source, OutputMode.Vertical, OutputMode.Horizontal);
         menu.Items.Add(copyVtoH);
 
@@ -2522,6 +2529,7 @@ public partial class MainWindow : Window
 
     private void PromptEditTransform(SceneSource source)
     {
+        if (!source.CanTransform) return;
         var transform = _activeMode == OutputMode.Vertical ? source.VerticalTransform : source.HorizontalTransform;
         if (transform.Locked)
         {
@@ -2608,6 +2616,7 @@ public partial class MainWindow : Window
 
     private void LayoutActionForSource(SceneSource source, string action)
     {
+        if (!source.CanTransform) return;
         var transform = _activeMode == OutputMode.Vertical ? source.VerticalTransform : source.HorizontalTransform;
         if (transform.Locked) return;
         var display = FindVisualSize(source);
@@ -3170,7 +3179,7 @@ public partial class MainWindow : Window
 
     private void AutoVertical_Click(object sender, RoutedEventArgs e)
     {
-        if (SelectedSource is not { } source) return;
+        if (SelectedSource is not { CanTransform: true } source) return;
         var transform = source.VerticalTransform;
         if (transform.Locked) return;
         var display = FindVisualSize(source);
@@ -3329,6 +3338,11 @@ public partial class MainWindow : Window
     private void ApplyResponsiveLayout()
     {
         if (!IsLoaded) return;
+        PerformanceStatusLabel.Visibility = ActualWidth < 1450 ? Visibility.Collapsed : Visibility.Visible;
+        OutputsCountLabel.Visibility = ActualWidth < 1250 ? Visibility.Collapsed : Visibility.Visible;
+        DesktopBar.Visibility = ActualWidth < 1120 ? Visibility.Collapsed : Visibility.Visible;
+        MicBar.Visibility = ActualWidth < 900 ? Visibility.Collapsed : Visibility.Visible;
+        AudioMatrixBtn.Visibility = ActualWidth < 1050 ? Visibility.Collapsed : Visibility.Visible;
         var dpi = VisualTreeHelper.GetDpi(this);
         MinWidth = Math.Max(800, 1280 / dpi.DpiScaleX);
         MinHeight = Math.Max(450, 720 / dpi.DpiScaleY);

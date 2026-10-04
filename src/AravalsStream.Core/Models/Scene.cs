@@ -70,6 +70,12 @@ public sealed class SceneSource : INotifyPropertyChanged
     }
 
     public SourceType Type { get; set; }
+    [JsonIgnore]
+    public bool HasVideo => Type is not (SourceType.AudioInput or SourceType.AudioOutput);
+    [JsonIgnore]
+    public bool HasAudio => Type is SourceType.AudioInput or SourceType.AudioOutput or SourceType.Camera or SourceType.CaptureDevice or SourceType.RemotePc or SourceType.Video;
+    [JsonIgnore]
+    public bool CanTransform => HasVideo;
     public string? DisplayId { get; set; }
     public Guid SourceReference { get; set; } = Guid.NewGuid();
 

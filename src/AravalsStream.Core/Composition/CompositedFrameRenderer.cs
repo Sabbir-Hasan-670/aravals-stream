@@ -32,7 +32,7 @@ public static class CompositedFrameRenderer
             throw new ArgumentException($"Destination buffer too small. Required: {requiredSize}, Actual: {destination.Length}");
         }
 
-        var firstVisible = scene?.Sources.FirstOrDefault(s => s.Visible);
+        var firstVisible = scene?.Sources.FirstOrDefault(s => s.Visible && s.HasVideo);
         var firstFrame = firstVisible is null ? null : frameProvider(firstVisible);
         var firstTransform = mode == OutputMode.Vertical ? firstVisible?.VerticalTransform : firstVisible?.HorizontalTransform;
         double scaleX = (double)targetWidth / (logicalWidth ?? targetWidth);
@@ -83,7 +83,7 @@ public static class CompositedFrameRenderer
         // Render sources in order (bottom to top)
         foreach (var source in scene.Sources)
         {
-            if (!source.Visible) continue;
+            if (!source.Visible || !source.HasVideo) continue;
 
             var frame = ReferenceEquals(source, firstVisible) ? firstFrame : frameProvider(source);
             if (frame is null || frame.Width <= 0 || frame.Height <= 0 ||

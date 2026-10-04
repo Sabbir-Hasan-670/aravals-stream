@@ -60,9 +60,17 @@
           </StackPanel>
         </Border>
         <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+          <Button x:Name="UpdateButton" Click="UpdateButton_Click" Content="CHECK UPDATES" Style="{StaticResource GhostButton}" Height="30" Padding="12,0" Margin="0,0,10,0" ToolTip="Check for a new Aravals Stream installer"/>
           <Button x:Name="AudioMatrixBtn" Click="AudioMatrix_Click" Content="AUDIO MATRIX" Style="{StaticResource GhostButton}" Height="30" Padding="12,0" Margin="0,0,10,0" ToolTip="Configure per-destination audio routing &amp; sync offsets"/>
           <Button x:Name="SettingsBtn" Click="Settings_Click" Content="SETTINGS" Style="{StaticResource GhostButton}" Height="30" Padding="12,0" ToolTip="Open Settings Center"/>
         </StackPanel>
+      </Grid>
+    </Border>
+
+    <Border x:Name="UpdateNotice" Grid.Row="1" Panel.ZIndex="10" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,24,0" Padding="12,10" MaxWidth="360" Background="{StaticResource CardBrush}" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="8">
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <StackPanel><TextBlock x:Name="UpdateNoticeText" Text="Update available" TextWrapping="Wrap" FontWeight="SemiBold"/><Button x:Name="InstallUpdateButton" Content="Download and install" Click="InstallUpdateButton_Click" Style="{StaticResource AccentButton}" HorizontalAlignment="Left" Margin="0,8,0,0"/></StackPanel>
+        <Button Grid.Column="1" Content="×" Click="DismissUpdateNotice_Click" Style="{StaticResource GhostButton}" Width="24" Height="24" Padding="0" Margin="8,0,0,0" ToolTip="Dismiss update notification"/>
       </Grid>
     </Border>
 
@@ -132,19 +140,19 @@
 
       <!-- Preview and chat -->
       <Grid Grid.Column="2"><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="14"/><RowDefinition x:Name="ChatRow" Height="220"/></Grid.RowDefinitions>
-        <Border Grid.Row="0" Style="{StaticResource Panel}" Padding="14"><Grid><Grid.RowDefinitions><RowDefinition Height="36"/><RowDefinition Height="*"/><RowDefinition Height="40"/></Grid.RowDefinitions>
+        <Border Grid.Row="0" Style="{StaticResource Panel}" Padding="14"><Grid><Grid.RowDefinitions><RowDefinition Height="36"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
           <Grid><TextBlock Text="LIVE PREVIEW" Style="{StaticResource SectionTitle}" VerticalAlignment="Center"/><TextBlock Text="SCENE CANVAS" Style="{StaticResource TinyText}" HorizontalAlignment="Right" VerticalAlignment="Center"/></Grid>
           <Grid Grid.Row="1" Margin="0,8,0,0"><Grid.ColumnDefinitions><ColumnDefinition x:Name="HorizontalColumn" Width="3*"/><ColumnDefinition x:Name="PreviewGap" Width="12"/><ColumnDefinition x:Name="VerticalColumn" Width="1*"/></Grid.ColumnDefinitions>
             <Border x:Name="HorizontalPane" Background="#070C12" BorderBrush="{StaticResource BorderBrushDark}" BorderThickness="1" CornerRadius="8" ClipToBounds="True"><Grid><controls:ScenePreview x:Name="HorizontalPreview"/><Border Background="#B00B111A" CornerRadius="4" Padding="8,4" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10" IsHitTestVisible="False"><TextBlock Text="HORIZONTAL • 1920×1080" Style="{StaticResource TinyText}"/></Border></Grid></Border>
             <Border x:Name="VerticalPane" Grid.Column="2" Background="#070C12" BorderBrush="{StaticResource BorderBrushDark}" BorderThickness="1" CornerRadius="8" ClipToBounds="True"><Grid><controls:ScenePreview x:Name="VerticalPreview"/><Border Background="#B00B111A" CornerRadius="4" Padding="8,4" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10" IsHitTestVisible="False"><TextBlock Text="VERTICAL • 1080×1920" Style="{StaticResource TinyText}"/></Border></Grid></Border>
           </Grid>
-          <StackPanel Grid.Row="2" Orientation="Horizontal" VerticalAlignment="Bottom">
+          <WrapPanel Grid.Row="2" Orientation="Horizontal" VerticalAlignment="Bottom">
             <Button Content="Fit Entire" Click="FitEntire_Click" Style="{StaticResource GhostButton}" Padding="9,5" Margin="0,0,6,0" ToolTip="Fit entire source preserving aspect ratio"/>
             <Button Content="Fill Canvas" Click="FillCanvas_Click" Style="{StaticResource GhostButton}" Padding="9,5" Margin="0,0,6,0" ToolTip="Fill canvas cropping overflow"/>
             <Button Content="Auto Vertical" Click="AutoVertical_Click" Style="{StaticResource GhostButton}" Padding="9,5" Margin="0,0,6,0" ToolTip="Apply smart vertical layout to vertical preview"/>
             <Button Content="Reset" Click="ResetLayout_Click" Style="{StaticResource GhostButton}" Padding="9,5" Margin="0,0,6,0" ToolTip="Reset transform"/>
             <Button x:Name="SafeAreaBtn" Content="Safe Area" Click="ToggleSafeArea_Click" Style="{StaticResource GhostButton}" Padding="9,5" ToolTip="Toggle vertical safe area guides"/>
-          </StackPanel>
+          </WrapPanel>
         </Grid></Border>
         <Border Grid.Row="2" Style="{StaticResource Panel}" Padding="14">
           <Grid>
@@ -190,7 +198,7 @@
       <Grid Grid.Column="4"><Grid.RowDefinitions><RowDefinition Height="1.2*" MinHeight="120"/><RowDefinition Height="14"/><RowDefinition Height="0.8*" MinHeight="100"/><RowDefinition Height="14"/><RowDefinition x:Name="StatsRow" Height="1*" MinHeight="110"/></Grid.RowDefinitions>
         <Border Grid.Row="0" Style="{StaticResource Panel}" Padding="12"><Grid><Grid.RowDefinitions><RowDefinition Height="38"/><RowDefinition Height="*"/><RowDefinition Height="42"/></Grid.RowDefinitions>
           <TextBlock Text="DESTINATIONS" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" Margin="5,0,0,0"/>
-          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"><ItemsControl x:Name="DestinationItems" Button.Click="DestinationButton_Click" ItemsSource="{Binding DestinationGroups}" ItemTemplate="{StaticResource DestinationCardTemplate}"/></ScrollViewer>
+          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><ItemsControl x:Name="DestinationItems" Button.Click="DestinationButton_Click" ItemsSource="{Binding DestinationGroups}" ItemTemplate="{StaticResource DestinationCardTemplate}"/></ScrollViewer>
           <Button Grid.Row="2" Content="+ Add Destination" Command="{Binding AddDestinationCommand}" Style="{StaticResource GhostButton}" HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
         </Grid></Border>
         <Border Grid.Row="2" Style="{StaticResource Panel}" Padding="12"><Grid><Grid.RowDefinitions><RowDefinition Height="38"/><RowDefinition Height="*"/></Grid.RowDefinitions><TextBlock Text="AUDIO MIXER" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" Margin="5,0,0,0"/><ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"><ItemsControl x:Name="MixerList" ItemTemplate="{StaticResource AudioMixerRowTemplate}"/></ScrollViewer></Grid></Border>
@@ -233,21 +241,21 @@
                   <TextBlock Text="YOUTUBE LIVE" Style="{StaticResource TinyText}" Margin="0,0,0,4"/>
                   <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrushDark}" BorderThickness="1" CornerRadius="4" Padding="10,8">
                     <StackPanel>
-                      <Grid Margin="0,0,0,4">
+                      <Grid Margin="0,0,0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <TextBlock Text="Broadcast:" Style="{StaticResource TinyText}" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="YtStatBroadcast" Text="{Binding YouTubeBroadcastStatus}" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="1" x:Name="YtStatBroadcast" Text="{Binding YouTubeBroadcastStatus}" ToolTip="{Binding YouTubeBroadcastStatus}" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"/>
                       </Grid>
-                      <Grid Margin="0,0,0,4">
+                      <Grid Margin="0,0,0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <TextBlock Text="Viewers:" Style="{StaticResource TinyText}" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="YtStatViewers" Text="{Binding YouTubeConcurrentViewers}" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource TextBrush}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="1" x:Name="YtStatViewers" Text="{Binding YouTubeConcurrentViewers}" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource TextBrush}" HorizontalAlignment="Right"/>
                       </Grid>
-                      <Grid Margin="0,0,0,4">
+                      <Grid Margin="0,0,0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <TextBlock Text="Subscribers:" Style="{StaticResource TinyText}" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="YtStatSubscribers" Text="{Binding YouTubeSubscribers}" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource TextBrush}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="1" x:Name="YtStatSubscribers" Text="{Binding YouTubeSubscribers}" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource TextBrush}" HorizontalAlignment="Right"/>
                       </Grid>
-                      <Grid>
+                      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <TextBlock Text="Chat:" Style="{StaticResource TinyText}" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="YtStatChat" Text="{Binding YouTubeChatStatus}" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource QuietBrush}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="1" x:Name="YtStatChat" Text="{Binding YouTubeChatStatus}" ToolTip="{Binding YouTubeChatStatus}" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource QuietBrush}" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"/>
                       </Grid>
                     </StackPanel>
                   </Border>
@@ -327,7 +335,7 @@
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
-        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" ClipToBounds="True">
           <StackPanel x:Name="MicBar" Orientation="Horizontal" Margin="0,0,22,0" VerticalAlignment="Center"><TextBlock Text="MIC" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" Margin="0,0,8,0"/><ProgressBar Value="{Binding Peak, Mode=OneWay}" Maximum="1" Width="105" Height="9" VerticalAlignment="Center"/><CheckBox Content="Mute" IsChecked="{Binding Muted, Mode=TwoWay}" Margin="9,0,0,0" VerticalAlignment="Center"/></StackPanel>
           <StackPanel x:Name="DesktopBar" Orientation="Horizontal" VerticalAlignment="Center"><TextBlock Text="DESKTOP" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" Margin="0,0,8,0"/><ProgressBar Value="{Binding Peak, Mode=OneWay}" Maximum="1" Width="105" Height="9" VerticalAlignment="Center"/><CheckBox Content="Mute" IsChecked="{Binding Muted, Mode=TwoWay}" Margin="9,0,0,0" VerticalAlignment="Center"/></StackPanel>
         </StackPanel>

@@ -99,7 +99,7 @@ public sealed class ScenePreview : UserControl
     
     public void SetSelected(SceneSource? source)
     {
-        _selected = source;
+        _selected = source?.CanTransform == true ? source : null;
         UpdateAdornerPositions();
     }
 
@@ -117,7 +117,7 @@ public sealed class ScenePreview : UserControl
 
         foreach (var source in _scene.Sources)
         {
-            if (source.Type is not (SourceType.DisplayCapture or SourceType.WindowCapture or SourceType.Camera or SourceType.CaptureDevice or SourceType.RemotePc or SourceType.Alerts or SourceType.ChatOverlay) || !source.Visible) continue;
+            if (!source.HasVideo || source.Type is not (SourceType.DisplayCapture or SourceType.WindowCapture or SourceType.Camera or SourceType.CaptureDevice or SourceType.RemotePc or SourceType.Alerts or SourceType.ChatOverlay) || !source.Visible) continue;
             var transform = Transform(source);
             if (!transform.Visible) continue;
 
@@ -279,7 +279,7 @@ public sealed class ScenePreview : UserControl
         _selectionBorder = null;
         _lockBadge = null;
 
-        if (_selected is null) return;
+        if (_selected?.CanTransform != true) return;
         var t = Transform(_selected);
         if (!t.Visible) return;
 
@@ -454,7 +454,7 @@ public sealed class ScenePreview : UserControl
 
     private void BeginDrag(SceneSource source, string handle, MouseButtonEventArgs e)
     {
-        if (source.Locked || Transform(source).Locked) return;
+        if (!source.CanTransform || source.Locked || Transform(source).Locked) return;
         _selected = source;
         _dragged = source;
         _handle = handle;

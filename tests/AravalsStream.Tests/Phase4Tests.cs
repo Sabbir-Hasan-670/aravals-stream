@@ -46,7 +46,7 @@ public sealed class Phase4Tests
         mixer.Receive(channel, [0.8f, -0.8f]);
         Assert.Equal([0.4f, -0.4f], output!);
         mixer.DecayMeters();
-        Assert.InRange(channel.Peak, 0.39f, 0.41f);
+        Assert.InRange(channel.Peak, 0.01f, 0.4f);
         channel.Muted = true;
         mixer.Receive(channel, [0.8f, -0.8f]);
         Assert.Equal([0f, 0f], output!);

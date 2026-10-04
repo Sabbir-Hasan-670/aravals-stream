@@ -128,7 +128,7 @@ public sealed class SceneCompositor : ISceneCompositor
         foreach (var stale in _feeds.Keys.Where(k => !referenced.Contains(k)).ToList()) StopFeed(stale);
         if (ActiveScene is null) return;
 
-        foreach (var source in ActiveScene.Sources.Where(s => s.Visible && IsVisual(s.Type)))
+        foreach (var source in ActiveScene.Sources.Where(s => s.Visible && s.HasVideo && IsVisual(s.Type)))
         {
             var key = KeyFor(source);
             if (key is null || _feeds.ContainsKey(key)) continue;
@@ -210,7 +210,7 @@ public sealed class SceneCompositor : ISceneCompositor
         return _windows.Start(window);
     }
 
-    public BitmapSource? FrameFor(SceneSource source) => KeyFor(source) is { } key && _feeds.TryGetValue(key, out var feed)
+    public BitmapSource? FrameFor(SceneSource source) => source.HasVideo && KeyFor(source) is { } key && _feeds.TryGetValue(key, out var feed)
         ? feed.Bitmap : null;
 
     public BitmapSource? OverlayFrameFor(SourceType type, OutputMode mode) =>
@@ -331,6 +331,7 @@ public sealed class SceneCompositor : ISceneCompositor
 
     public SceneSourceFrameLease? AcquireSourceFrame(SceneSource source, OutputMode mode)
     {
+        if (!source.HasVideo) return null;
         if (source.Type is SourceType.Alerts or SourceType.ChatOverlay)
         {
             lock (_overlayLock)

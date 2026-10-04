@@ -9,7 +9,7 @@ public sealed class PerformanceSettings
     public bool AutomaticProtection { get; set; } = true;
     public bool AllowAutomaticStreamQualityReduction { get; set; }
     public int CustomPreviewFps { get; set; } = 30;
-    public int CustomMeterRefreshHz { get; set; } = 15;
+    public int CustomMeterRefreshHz { get; set; } = 30;
 }
 
 public sealed record PerformanceProfile(int PreviewFps, int MeterRefreshHz, int StatsRefreshMilliseconds,
@@ -37,15 +37,15 @@ public static class PerformancePolicy
             : settings.Mode;
         var profile = mode switch
         {
-            PerformanceMode.Eco => new PerformanceProfile(15, 10, 1000, true),
-            PerformanceMode.Quality => new PerformanceProfile(hasActiveOutputs ? 60 : 30, 20, 500, false),
+            PerformanceMode.Eco => new PerformanceProfile(15, 30, 1000, true),
+            PerformanceMode.Quality => new PerformanceProfile(hasActiveOutputs ? 60 : 30, 60, 500, false),
             PerformanceMode.Custom => new PerformanceProfile(Math.Clamp(settings.CustomPreviewFps, 1, 60),
-                Math.Clamp(settings.CustomMeterRefreshHz, 1, 20), 1000, false),
-            _ => new PerformanceProfile(hasActiveOutputs ? 30 : 15, 15, 750, false)
+                Math.Clamp(settings.CustomMeterRefreshHz, 30, 60), 1000, false),
+            _ => new PerformanceProfile(hasActiveOutputs ? 30 : 15, 30, 750, false)
         };
         if (hidden) return profile with { PreviewFps = 0, MeterRefreshHz = 2, StatsRefreshMilliseconds = 2000, ReducedAnimations = true };
         if (overloaded && settings.AutomaticProtection)
-            return profile with { PreviewFps = Math.Min(profile.PreviewFps, 10), MeterRefreshHz = Math.Min(profile.MeterRefreshHz, 10), ReducedAnimations = true };
+            return profile with { PreviewFps = Math.Min(profile.PreviewFps, 10), ReducedAnimations = true };
         return profile;
     }
 }

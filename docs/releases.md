@@ -14,3 +14,9 @@ Development releases include portable desktop packages and remain prereleases. L
 All components/installers use the requested version. Builds and publishes treat warnings as errors. A failed job prevents publication; uploads are assembled and checked in a draft. An unpublished draft can be retried for the same source commit. Published versions are never overwritten.
 
 Release packaging does not deploy websites, Relay servers or infrastructure. The website consumes GitHub latest stable metadata when its prepared source is separately deployed.
+
+## Desktop in-app updates
+
+Windows Desktop checks published GitHub Releases at startup and every six hours when automatic checks are enabled. The header also has a manual **Check Updates** button. A new release appears in an in-app notification; **Download and install** fetches the Windows installer, verifies it against the release's `SHA256SUMS.txt`, launches Inno Setup, and closes the Desktop after stopping active outputs. No browser download is needed after an updater-capable Desktop version is installed.
+
+Stable installations receive stable releases by default. The General setting **Include development releases** opts into prereleases; development builds include them automatically. This updater is for the Windows workstation installer only. Existing installations without the updater need one normal installer upgrade before in-app updates become available.

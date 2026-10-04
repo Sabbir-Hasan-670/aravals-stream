@@ -138,7 +138,7 @@ public sealed class D3D11FrameCompositor : IDisposable
                     // Render sources bottom to top
                     foreach (var source in scene.Sources)
                     {
-                        if (!source.Visible) continue;
+                        if (!source.Visible || !source.HasVideo) continue;
 
                         using var sourceLease = frameProvider(source);
                         var frame = sourceLease?.Frame;
