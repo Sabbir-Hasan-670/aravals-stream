@@ -87,11 +87,11 @@ public sealed class Phase17PerformanceTests
         var settings = new PerformanceSettings();
         Assert.Equal(PerformanceMode.Auto, settings.Mode);
         Assert.False(settings.AllowAutomaticStreamQualityReduction);
-        Assert.Equal(15, PerformancePolicy.Resolve(settings, HardwareClass.Low, false, false).PreviewFps);
+        Assert.Equal(30, PerformancePolicy.Resolve(settings, HardwareClass.Low, false, false).PreviewFps);
         Assert.Equal(60, PerformancePolicy.Resolve(settings, HardwareClass.High, false, false).PreviewFps);
         Assert.Equal(0, PerformancePolicy.Resolve(settings, HardwareClass.High, true, false).PreviewFps);
         Assert.Equal(10, PerformancePolicy.Resolve(settings, HardwareClass.High, false, true).PreviewFps);
-        Assert.Equal(15, PerformancePolicy.Resolve(settings, HardwareClass.Moderate, false, false, hasActiveOutputs: false).PreviewFps);
+        Assert.Equal(30, PerformancePolicy.Resolve(settings, HardwareClass.Moderate, false, false, hasActiveOutputs: false).PreviewFps);
         Assert.Equal(30, PerformancePolicy.Resolve(settings, HardwareClass.High, false, false, hasActiveOutputs: false).PreviewFps);
         Assert.True(PerformancePolicy.ShouldWarnBeforeStarting(HardwareClass.Low, 2, 2));
         Assert.False(PerformancePolicy.ShouldWarnBeforeStarting(HardwareClass.High, 1, 1));
