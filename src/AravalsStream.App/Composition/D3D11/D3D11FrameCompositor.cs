@@ -1,3 +1,4 @@
+using AravalsStream.Core.Services;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using AravalsStream.Core.Composition;
@@ -130,8 +131,8 @@ public sealed class D3D11FrameCompositor : IDisposable
                     context.PixelShader.SetSampler(0, shaders.LinearSampler);
                     context.OutputMerger.SetBlendState(shaders.AlphaBlendState, Color4.White, -1);
 
-                    double logicalWidth = mode == OutputMode.Vertical ? 1080 : 1920;
-                    double logicalHeight = mode == OutputMode.Vertical ? 1920 : 1080;
+                    double logicalWidth = CanvasLayout.Size(mode).Width;
+                    double logicalHeight = CanvasLayout.Size(mode).Height;
                     double scaleX = targetWidth / logicalWidth;
                     double scaleY = targetHeight / logicalHeight;
 

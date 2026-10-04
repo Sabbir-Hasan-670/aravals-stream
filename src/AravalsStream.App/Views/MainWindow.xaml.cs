@@ -215,6 +215,7 @@ public partial class MainWindow : Window
             });
             _ = _remoteDiscovery.StartAsync();
             var settings = await _settings.LoadAsync();
+            ApplyCanvasSettings(settings.Canvas, false);
             _captureSources.Clear();
             _captureSources.AddRange(settings.CaptureSources);
             _captureResources.Clear();
@@ -1024,11 +1025,14 @@ public partial class MainWindow : Window
                 _relayClient.LastConnected, _relayClient.LastEvent, _relayClient.EventsReceived,
                 _relayClient.EventsRejected, _loadedSettings.Relay.KickSubscriptionState.ToString()),
             () => $"{_relayClient.State} • reconnects {_relayClient.ReconnectCount} • last event {_relayClient.LastEvent?.ToLocalTime().ToString("g") ?? "none"}",
-            ManageKickRelaySubscriptionsAsync);
-        dlg.ShowDialog();
+            ManageKickRelaySubscriptionsAsync, _streaming || _recording.State is not (RecordingState.Idle or RecordingState.Error));
+        _hotkeyService?.UnregisterAll();
+        try { dlg.ShowDialog(); }
+        finally { _hotkeyService?.RegisterHotkeys(_loadedSettings.Hotkeys); }
         if (dlg.SettingsSaved)
         {
             _recordingSettings = _loadedSettings.Recording;
+            ApplyCanvasSettings(_loadedSettings.Canvas, true);
             foreach (var id in dlg.ChangedAudioResources) _audioEngine.RestartResource(id, ViewModel.Scenes);
             await SaveSettingsAsync();
             ConfigureWebhookRelay();
@@ -1039,6 +1043,36 @@ public partial class MainWindow : Window
             _hotkeyService?.RegisterHotkeys(_loadedSettings.Hotkeys);
             ApplyPerformanceProfile();
             ConfigureUpdateChecks();
+        }
+    }
+
+    private void ApplyCanvasSettings(CanvasSettings settings, bool scaleSources)
+    {
+        if (!settings.IsValid) settings = new CanvasSettings();
+        var oldHorizontal = CanvasLayout.Size(OutputMode.Horizontal);
+        var oldVertical = CanvasLayout.Size(OutputMode.Vertical);
+        CanvasLayout.Configure(settings);
+        if (scaleSources)
+        {
+            foreach (var source in ViewModel.Scenes.SelectMany(scene => scene.Sources).Distinct())
+            {
+                Scale(source.HorizontalTransform, oldHorizontal, CanvasLayout.Size(OutputMode.Horizontal));
+                Scale(source.VerticalTransform, oldVertical, CanvasLayout.Size(OutputMode.Vertical));
+            }
+        }
+        HorizontalPreview.SetMode(OutputMode.Horizontal);
+        VerticalPreview.SetMode(OutputMode.Vertical);
+        HorizontalCanvasLabel.Text = $"HORIZONTAL • {settings.HorizontalWidth}×{settings.HorizontalHeight}";
+        VerticalCanvasLabel.Text = $"VERTICAL • {settings.VerticalWidth}×{settings.VerticalHeight}";
+        RefreshPreviews();
+
+        static void Scale(SourceTransform transform, (int Width, int Height) previous, (int Width, int Height) next)
+        {
+            if (previous == next) return;
+            transform.X *= next.Width / (double)previous.Width;
+            transform.Width *= next.Width / (double)previous.Width;
+            transform.Y *= next.Height / (double)previous.Height;
+            transform.Height *= next.Height / (double)previous.Height;
         }
     }
 
@@ -2134,7 +2168,8 @@ public partial class MainWindow : Window
         var resource = _captureResources.FirstOrDefault(r => r.Type == type && r.DeviceId == id);
         if (resource is null)
         {
-            resource = new CaptureResource { Type = type, DeviceId = id, Name = name };
+            resource = new CaptureResource { Type = type, DeviceId = id, Name = name,
+                AudioFilters = type == SourceType.AudioInput ? _loadedSettings.Audio.MicrophoneFilters?.Copy() ?? new AudioFilterSettings() : new AudioFilterSettings() };
             _captureResources.Add(resource);
         }
         if (device is WindowInfo window) { resource.WindowTitle = window.Title; resource.ProcessName = window.ProcessName; }
@@ -2650,7 +2685,7 @@ public partial class MainWindow : Window
         var transform = _activeMode == OutputMode.Vertical ? source.VerticalTransform : source.HorizontalTransform;
         if (transform.Locked) return;
         var display = FindVisualSize(source);
-        var (dw, dh) = display ?? (_activeMode == OutputMode.Vertical ? (1080, 1920) : (1920, 1080));
+        var (dw, dh) = display ?? CanvasLayout.Size(_activeMode);
 
         switch (action)
         {
@@ -3216,7 +3251,7 @@ public partial class MainWindow : Window
         var transform = source.VerticalTransform;
         if (transform.Locked) return;
         var display = FindVisualSize(source);
-        var (dw, dh) = display ?? (1920, 1080);
+        var (dw, dh) = display ?? CanvasLayout.Size(OutputMode.Horizontal);
         CanvasLayout.SmartVertical(transform, dw, dh, SmartVerticalTemplate.FullscreenCrop);
         RefreshPreviews();
         _ = SaveSettingsAsync();

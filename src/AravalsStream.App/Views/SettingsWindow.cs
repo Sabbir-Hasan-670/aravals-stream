@@ -31,6 +31,9 @@ public sealed class SettingsWindow : Window
     private readonly RecordingSettings _recordingDraft;
     private readonly AudioSettings _audioDraft;
     private readonly StreamingSettings _streamingDraft;
+    private readonly CanvasSettings _canvasDraft;
+    private readonly List<HotkeyBinding> _hotkeyDraft;
+    private readonly bool _outputsActive;
     private readonly Dictionary<string, (string Text, int Min, int Max, Action<int> Set)> _numbers = [];
     private readonly Dictionary<Guid, AudioDeviceInfo> _deviceChanges = [];
     private readonly Dictionary<Guid, AudioFilterSettings> _filterChanges = [];
@@ -59,12 +62,22 @@ public sealed class SettingsWindow : Window
         DpapiSecretStorage? secrets = null, PerformanceMetricsService? performanceMetrics = null,
         Func<string>? performanceOutputDetails = null, PairedDeviceRegistry? pairedDevices = null,
         Func<RelayDiagnosticSnapshot>? relayDiagnostics = null, Func<string>? relayStatus = null,
-        Func<bool, Task>? kickSubscriptionsAction = null)
+        Func<bool, Task>? kickSubscriptionsAction = null, bool outputsActive = false)
     {
         Owner = owner;
         _settings = settings;
+        _outputsActive = outputsActive;
+        _canvasDraft = settings.Canvas with { };
+        _hotkeyDraft = JsonSerializer.Deserialize<List<HotkeyBinding>>(JsonSerializer.Serialize(settings.Hotkeys))!;
+        foreach (var action in Enum.GetValues<HotkeyAction>())
+            if (_hotkeyDraft.All(binding => binding.Action != action))
+                _hotkeyDraft.Add(new HotkeyBinding { Action = action, DisplayName = System.Text.RegularExpressions.Regex.Replace(action.ToString(), "([a-z])([A-Z0-9])", "$1 $2"), Enabled = false });
         _recordingDraft = JsonSerializer.Deserialize<RecordingSettings>(JsonSerializer.Serialize(settings.Recording))!;
         _audioDraft = JsonSerializer.Deserialize<AudioSettings>(JsonSerializer.Serialize(settings.Audio))!;
+        _audioDraft.DefaultMicrophoneId ??= settings.CaptureResources.FirstOrDefault(r => r.Type == SourceType.AudioInput)?.DeviceId;
+        _audioDraft.DefaultDesktopAudioId ??= settings.CaptureResources.FirstOrDefault(r => r.Type == SourceType.AudioOutput)?.DeviceId;
+        _audioDraft.MicrophoneFilters ??= (settings.CaptureResources.FirstOrDefault(r => r.Type == SourceType.AudioInput && r.DeviceId == _audioDraft.DefaultMicrophoneId)?.AudioFilters
+            ?? new AudioFilterSettings()).Copy();
         _streamingDraft = JsonSerializer.Deserialize<StreamingSettings>(JsonSerializer.Serialize(settings.Streaming))!;
         _performanceDraft = new PerformanceSettings
         {
@@ -86,7 +99,9 @@ public sealed class SettingsWindow : Window
 
         Title = "Aravals Stream - Settings Center";
         Width = 840;
-        Height = 580;
+        Height = 680;
+        MinWidth = 760;
+        MinHeight = 540;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = (Brush)FindResource("BackgroundBrush");
 
@@ -1020,8 +1035,23 @@ public sealed class SettingsWindow : Window
         var panel = new StackPanel();
         AddSectionHeader(panel, "Video & Canvas Settings");
 
-        AddLabel(panel, "Horizontal Canvas: 1920 × 1080 (16:9 1080p Standard)");
-        AddLabel(panel, "Vertical Canvas: 1080 × 1920 (9:16 Shorts/Reels/TikTok)");
+        AddLabel(panel, "Set custom canvas dimensions. Existing source positions scale with the canvas.");
+        if (_outputsActive) AddLabel(panel, "Stop recording and streaming before changing canvas dimensions.");
+        var dimensions = new StackPanel { IsEnabled = !_outputsActive };
+        AddNumber(dimensions, "Horizontal width (px)", "canvas-h-width", _canvasDraft.HorizontalWidth, 64, 4096, v => _canvasDraft.HorizontalWidth = v);
+        AddNumber(dimensions, "Horizontal height (px)", "canvas-h-height", _canvasDraft.HorizontalHeight, 64, 4096, v => _canvasDraft.HorizontalHeight = v);
+        AddNumber(dimensions, "Vertical width (px)", "canvas-v-width", _canvasDraft.VerticalWidth, 64, 4096, v => _canvasDraft.VerticalWidth = v);
+        AddNumber(dimensions, "Vertical height (px)", "canvas-v-height", _canvasDraft.VerticalHeight, 64, 4096, v => _canvasDraft.VerticalHeight = v);
+        panel.Children.Add(dimensions);
+        AddLabel(panel, "Use even dimensions, for example 2560 × 1440 or 720 × 1280.");
+        AddSectionHeader(panel, "Video bitrate");
+        AddNumber(panel, "Recording video bitrate (kbps)", "record-video", _recordingDraft.Video.BitrateKbps, 100, 200000, v => _recordingDraft.Video.BitrateKbps = v);
+        AddNumber(panel, "Streaming video bitrate for new destinations (kbps)", "stream-video", _streamingDraft.DefaultVideoBitrateKbps, 500, 100000, v => _streamingDraft.DefaultVideoBitrateKbps = v);
+        foreach (var group in _settings.DestinationGroups)
+            foreach (var destination in new[] { group.Horizontal, group.Vertical })
+                if (destination.Status is DestinationStatus.Offline or DestinationStatus.Disabled or DestinationStatus.Error)
+                    AddNumber(panel, $"{group.Name} · {destination.OutputMode} video bitrate (kbps)", $"dest-video-{destination.Id}", destination.VideoBitrateKbps, 500, 100000, v => destination.VideoBitrateKbps = v);
+        AddLabel(panel, "Bitrate changes apply when you next start an output.");
 
         AddLabel(panel, "Default Hardware Encoder:");
         var encCombo = new ComboBox { Height = 28, Margin = new Thickness(0, 4, 0, 12) };
@@ -1032,36 +1062,48 @@ public sealed class SettingsWindow : Window
         encCombo.SelectionChanged += (_, _) => _streamingDraft.DefaultEncoder = (string)((ComboBoxItem)encCombo.SelectedItem).Tag;
         panel.Children.Add(encCombo);
 
-        return panel;
+        return new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
 
     private UIElement BuildAudioTab()
     {
         var panel = new StackPanel();
-        AddSectionHeader(panel, "Audio Settings");
-
-        AddLabel(panel, "Sample Rate: 48.0 kHz (Stereo, 2 Channels)");
-        AddLabel(panel, "Default Desktop Audio:");
-        AddDeviceChoice(panel, false, _audioDraft.DefaultDesktopAudioId, d => _audioDraft.DefaultDesktopAudioId = d.Id);
-
-        AddLabel(panel, "Default Microphone:");
-        AddDeviceChoice(panel, true, _audioDraft.DefaultMicrophoneId, d => _audioDraft.DefaultMicrophoneId = d.Id);
-        AddSectionHeader(panel, "Existing Audio Sources");
-        AddLabel(panel, "Change a source device here. Volume, routing and filters are retained.");
-        foreach (var resource in _settings.CaptureResources.Where(r => r.Type is SourceType.AudioInput or SourceType.AudioOutput))
+        AddSectionHeader(panel, "Microphone");
+        AddLabel(panel, "Choose the microphone used by your microphone sources.");
+        AddDeviceChoice(panel, true, _audioDraft.DefaultMicrophoneId, device =>
         {
-            AddLabel(panel, resource.Name);
-            AddDeviceChoice(panel, resource.Type == SourceType.AudioInput,
-                _deviceChanges.GetValueOrDefault(resource.Id)?.Id ?? resource.DeviceId, d => _deviceChanges[resource.Id] = d);
-            var filters = new Button { Content = "Audio filters…", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 12), Padding = new Thickness(10, 5, 10, 5) };
-            filters.Click += (_, _) =>
+            _audioDraft.DefaultMicrophoneId = device.Id;
+            foreach (var resource in _settings.CaptureResources.Where(r => r.Type == SourceType.AudioInput))
             {
-                var dialog = new AudioFiltersDialog(this, resource.Name, _filterChanges.GetValueOrDefault(resource.Id) ?? resource.AudioFilters);
-                if (dialog.ShowDialog() == true) _filterChanges[resource.Id] = dialog.Result.Copy();
-            };
-            panel.Children.Add(filters);
-        }
-
+                _deviceChanges[resource.Id] = device;
+                _filterChanges[resource.Id] = _audioDraft.MicrophoneFilters!.Copy();
+            }
+        });
+        var filters = new Button { Content = "Microphone filters…", HorizontalAlignment = HorizontalAlignment.Left,
+            Padding = new Thickness(16, 8, 16, 8), Margin = new Thickness(0, 0, 0, 12) };
+        filters.Click += (_, _) =>
+        {
+            var selectedFilters = _audioDraft.MicrophoneFilters ?? _settings.CaptureResources
+                .FirstOrDefault(r => r.Type == SourceType.AudioInput && r.DeviceId == _audioDraft.DefaultMicrophoneId)?.AudioFilters
+                ?? _settings.CaptureResources.FirstOrDefault(r => r.Type == SourceType.AudioInput)?.AudioFilters ?? new AudioFilterSettings();
+            var dialog = new AudioFiltersDialog(this, "Selected microphone", selectedFilters);
+            if (dialog.ShowDialog() == true)
+            {
+                _audioDraft.MicrophoneFilters = dialog.Result.Copy();
+                foreach (var resource in _settings.CaptureResources.Where(r => r.Type == SourceType.AudioInput))
+                    _filterChanges[resource.Id] = dialog.Result.Copy();
+            }
+        };
+        panel.Children.Add(filters);
+        AddLabel(panel, "Noise suppression, gate, compressor, gain and limiter. Your filters stay selected when you change microphones.");
+        AddSectionHeader(panel, "Desktop audio");
+        AddDeviceChoice(panel, false, _audioDraft.DefaultDesktopAudioId, device =>
+        {
+            _audioDraft.DefaultDesktopAudioId = device.Id;
+            foreach (var resource in _settings.CaptureResources.Where(r => r.Type == SourceType.AudioOutput))
+                _deviceChanges[resource.Id] = device;
+        });
+        AddLabel(panel, "48 kHz · Stereo. Individual source controls are available in the audio mixer.");
         return new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
 
@@ -1179,6 +1221,12 @@ public sealed class SettingsWindow : Window
         }
         if (string.IsNullOrWhiteSpace(_recordingDraft.OutputDirectory) || !System.IO.Path.IsPathFullyQualified(_recordingDraft.OutputDirectory) || _recordingDraft.OutputDirectory.IndexOfAny(System.IO.Path.GetInvalidPathChars()) >= 0)
         { MessageBox.Show(this, "Choose a full recording folder path, such as D:\\Recordings.", "Invalid recording folder"); return; }
+        foreach (var (key, field) in _numbers.Where(pair => pair.Key.StartsWith("canvas-")))
+            if (int.Parse(field.Text) % 2 != 0)
+            { MessageBox.Show(this, "Canvas width and height must be even numbers.", "Invalid canvas size"); return; }
+        var enabledHotkeys = _hotkeyDraft.Where(h => h.Enabled && h.Key != 0).ToList();
+        if (enabledHotkeys.Any(h => enabledHotkeys.Any(other => !ReferenceEquals(h, other) && h.ConflictsWith(other))))
+        { MessageBox.Show(this, "Two enabled actions use the same shortcut. Change or disable one of them.", "Shortcut conflict"); return; }
         foreach (var (set, value) in numbers) set(value);
         foreach (var resource in _settings.CaptureResources)
         {
@@ -1192,6 +1240,12 @@ public sealed class SettingsWindow : Window
             }
             if (_filterChanges.TryGetValue(resource.Id, out var filters)) resource.AudioFilters = filters.Copy();
         }
+        if (_canvasDraft != _settings.Canvas)
+        {
+            _recordingDraft.Video.Width = 0;
+            _recordingDraft.Video.Height = 0;
+        }
+        _settings.Canvas = _canvasDraft; _settings.Hotkeys = _hotkeyDraft;
         _settings.Recording = _recordingDraft; _settings.Audio = _audioDraft;
         _settings.Streaming = _streamingDraft; _settings.Performance = _performanceDraft;
         SettingsSaved = true; Close();
@@ -1200,26 +1254,58 @@ public sealed class SettingsWindow : Window
     private UIElement BuildHotkeysTab()
     {
         var panel = new StackPanel();
-        AddSectionHeader(panel, "Configurable Hotkeys");
-
-        var list = new ListView
+        AddSectionHeader(panel, "Keyboard shortcuts");
+        AddLabel(panel, "Click a shortcut and press your key combination. Enable actions you want to use globally.");
+        foreach (var group in _hotkeyDraft.GroupBy(h => h.Action.ToString().StartsWith("SwitchScene") ? "Scenes" :
+                     h.Action is HotkeyAction.MuteMicrophone or HotkeyAction.MuteDesktopAudio ? "Audio" : "Streaming & recording")
+                     .OrderBy(group => group.Key == "Scenes" ? 2 : group.Key == "Audio" ? 1 : 0))
         {
-            Height = 320,
-            Background = (Brush)FindResource("PanelBrush"),
-            BorderBrush = (Brush)FindResource("BorderBrushDark"),
-            BorderThickness = new Thickness(1),
-            Foreground = (Brush)FindResource("TextBrush")
-        };
-
-        var gridView = new GridView();
-        gridView.Columns.Add(new GridViewColumn { Header = "Action", DisplayMemberBinding = new System.Windows.Data.Binding("DisplayName"), Width = 220 });
-        gridView.Columns.Add(new GridViewColumn { Header = "Shortcut", DisplayMemberBinding = new System.Windows.Data.Binding("ShortcutText"), Width = 120 });
-        gridView.Columns.Add(new GridViewColumn { Header = "Enabled", DisplayMemberBinding = new System.Windows.Data.Binding("Enabled"), Width = 80 });
-        list.View = gridView;
-        list.ItemsSource = _settings.Hotkeys;
-
-        panel.Children.Add(list);
-        return panel;
+            AddSectionHeader(panel, group.Key);
+            foreach (var binding in group)
+            {
+                var row = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(170) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                var enabled = new CheckBox { Content = binding.DisplayName, IsChecked = binding.Enabled,
+                    VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+                enabled.Checked += (_, _) => binding.Enabled = true;
+                enabled.Unchecked += (_, _) => binding.Enabled = false;
+                row.Children.Add(enabled);
+                var shortcut = new TextBox { Text = binding.Key == 0 ? "Click to set shortcut" : binding.ShortcutText,
+                    IsReadOnly = true, Padding = new Thickness(8), VerticalContentAlignment = VerticalAlignment.Center };
+                shortcut.PreviewKeyDown += (_, e) =>
+                {
+                    var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+                    if (key is System.Windows.Input.Key.LeftCtrl or System.Windows.Input.Key.RightCtrl or
+                        System.Windows.Input.Key.LeftShift or System.Windows.Input.Key.RightShift or
+                        System.Windows.Input.Key.LeftAlt or System.Windows.Input.Key.RightAlt or
+                        System.Windows.Input.Key.LWin or System.Windows.Input.Key.RWin) return;
+                    if (key is System.Windows.Input.Key.Tab or System.Windows.Input.Key.Escape) return;
+                    e.Handled = true;
+                    var modifiers = System.Windows.Input.Keyboard.Modifiers;
+                    binding.Key = System.Windows.Input.KeyInterop.VirtualKeyFromKey(key);
+                    binding.Modifiers = (modifiers.HasFlag(System.Windows.Input.ModifierKeys.Alt) ? 1 : 0) |
+                        (modifiers.HasFlag(System.Windows.Input.ModifierKeys.Control) ? 2 : 0) |
+                        (modifiers.HasFlag(System.Windows.Input.ModifierKeys.Shift) ? 4 : 0) |
+                        (modifiers.HasFlag(System.Windows.Input.ModifierKeys.Windows) ? 8 : 0);
+                    binding.ShortcutText = (((binding.Modifiers & 2) != 0) ? "Ctrl + " : "") +
+                        (((binding.Modifiers & 1) != 0) ? "Alt + " : "") +
+                        (((binding.Modifiers & 4) != 0) ? "Shift + " : "") +
+                        (((binding.Modifiers & 8) != 0) ? "Win + " : "") + key;
+                    shortcut.Text = binding.ShortcutText;
+                    binding.Enabled = true; enabled.IsChecked = true;
+                };
+                Grid.SetColumn(shortcut, 1); row.Children.Add(shortcut);
+                var clear = new Button { Content = "Clear", Margin = new Thickness(8, 0, 0, 0), Padding = new Thickness(8, 4, 8, 4) };
+                clear.Click += (_, _) => { binding.Key = 0; binding.Modifiers = 0; binding.ShortcutText = "";
+                    binding.Enabled = false; enabled.IsChecked = false; shortcut.Text = "Click to set shortcut"; };
+                Grid.SetColumn(clear, 2); row.Children.Add(clear);
+                panel.Children.Add(new Border { Background = (Brush)FindResource("PanelBrush"), CornerRadius = new CornerRadius(8),
+                    Padding = new Thickness(12), Margin = new Thickness(0, 0, 0, 6), Child = row });
+            }
+        }
+        return new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
 
     private UIElement BuildAdvancedTab()
@@ -1361,6 +1447,7 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(new TextBlock
         {
             Text = text,
+            TextWrapping = TextWrapping.Wrap,
             FontSize = 12,
             Foreground = (Brush)FindResource("TextBrush"),
             Margin = new Thickness(0, 0, 0, 8)

@@ -217,9 +217,9 @@ public partial class MainWindow
     {
         foreach (var source in ViewModel.SelectedScene?.Sources.Where(s => s.Type == SourceType.Alerts) ?? [])
         {
-            Position(source.HorizontalTransform, 1920, 1080, Math.Clamp(definition.HorizontalWidth, 200, 1800), 180,
+            Position(source.HorizontalTransform, CanvasLayout.Size(OutputMode.Horizontal).Width, CanvasLayout.Size(OutputMode.Horizontal).Height, Math.Clamp(definition.HorizontalWidth, 200, 1800), 180,
                 definition.Position, definition.HorizontalX, definition.HorizontalY);
-            Position(source.VerticalTransform, 1080, 1920, Math.Clamp(definition.VerticalWidth, 200, 1000), 240,
+            Position(source.VerticalTransform, CanvasLayout.Size(OutputMode.Vertical).Width, CanvasLayout.Size(OutputMode.Vertical).Height, Math.Clamp(definition.VerticalWidth, 200, 1000), 240,
                 definition.Position, definition.VerticalX, definition.VerticalY);
         }
 

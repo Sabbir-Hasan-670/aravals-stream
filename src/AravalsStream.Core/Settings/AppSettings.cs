@@ -12,6 +12,7 @@ public sealed class AppSettings
     public GeneralSettings General { get; set; } = new();
     public PerformanceSettings Performance { get; set; } = new();
     public AudioSettings Audio { get; set; } = new();
+    public CanvasSettings Canvas { get; set; } = new();
     public StreamingSettings Streaming { get; set; } = new();
     public List<HotkeyBinding> Hotkeys { get; set; } = [];
     public List<AudioRouteSetting> AudioRoutes { get; set; } = [];

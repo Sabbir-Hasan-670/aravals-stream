@@ -8,6 +8,7 @@ public sealed class AudioSettings
     public string? MonitoringDeviceName { get; set; }
     public string? DefaultMicrophoneId { get; set; }
     public string? DefaultDesktopAudioId { get; set; }
+    public AravalsStream.Core.Audio.AudioFilterSettings? MicrophoneFilters { get; set; }
 }
 
 public sealed class AudioRouteSetting

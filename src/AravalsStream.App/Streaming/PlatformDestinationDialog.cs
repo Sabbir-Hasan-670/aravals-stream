@@ -160,12 +160,12 @@ public sealed class PlatformDestinationDialog : Window
         encoderChoices.AddRange(encoders.Where(e => e.Available));
 
         // Horizontal Settings Panel
-        ConfigureFormatPanel(_hPanelBorder, "HORIZONTAL OUTPUT (1920x1080)", _hVideo, _hFps, _hEncoder, _hKeyframe,
+        ConfigureFormatPanel(_hPanelBorder, $"HORIZONTAL OUTPUT ({AravalsStream.Core.Services.CanvasLayout.Size(OutputMode.Horizontal).Width}×{AravalsStream.Core.Services.CanvasLayout.Size(OutputMode.Horizontal).Height})", _hVideo, _hFps, _hEncoder, _hKeyframe,
             Result.Horizontal, encoderChoices, isHorizontal: true);
         panel.Children.Add(_hPanelBorder);
 
         // Vertical Settings Panel
-        ConfigureFormatPanel(_vPanelBorder, "VERTICAL OUTPUT (1080x1920)", _vVideo, _vFps, _vEncoder, _vKeyframe,
+        ConfigureFormatPanel(_vPanelBorder, $"VERTICAL OUTPUT ({AravalsStream.Core.Services.CanvasLayout.Size(OutputMode.Vertical).Width}×{AravalsStream.Core.Services.CanvasLayout.Size(OutputMode.Vertical).Height})", _vVideo, _vFps, _vEncoder, _vKeyframe,
             Result.Vertical, encoderChoices, isHorizontal: false);
         panel.Children.Add(_vPanelBorder);
 

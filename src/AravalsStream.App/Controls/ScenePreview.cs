@@ -490,7 +490,7 @@ public sealed class ScenePreview : UserControl
             if (_mode == OutputMode.Vertical)
             {
                 t.BackgroundEnlarged = false;
-                t.FocusX = CanvasLayout.CalculateFocusX(t.X, t.Width, 1080);
+                t.FocusX = CanvasLayout.CalculateFocusX(t.X, t.Width, CanvasLayout.Size(_mode).Width);
             }
         }
         else if (_handle is "R" or "L" or "T" or "B")
@@ -525,7 +525,7 @@ public sealed class ScenePreview : UserControl
 
             if (_mode == OutputMode.Vertical)
             {
-                t.FocusX = CanvasLayout.CalculateFocusX(t.X, t.Width, 1080);
+                t.FocusX = CanvasLayout.CalculateFocusX(t.X, t.Width, CanvasLayout.Size(_mode).Width);
             }
         }
         else // Corner handles: "TL", "TR", "BL", "BR"
@@ -560,7 +560,7 @@ public sealed class ScenePreview : UserControl
 
             if (_mode == OutputMode.Vertical)
             {
-                t.FocusX = CanvasLayout.CalculateFocusX(t.X, t.Width, 1080);
+                t.FocusX = CanvasLayout.CalculateFocusX(t.X, t.Width, CanvasLayout.Size(_mode).Width);
             }
         }
 

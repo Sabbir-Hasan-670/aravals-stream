@@ -7,8 +7,20 @@ public static class CanvasLayout
     public const int HorizontalWidth = 1920, HorizontalHeight = 1080;
     public const int VerticalWidth = 1080, VerticalHeight = 1920;
 
-    public static (int Width, int Height) Size(OutputMode mode) => mode == OutputMode.Vertical
-        ? (VerticalWidth, VerticalHeight) : (HorizontalWidth, HorizontalHeight);
+    private static AravalsStream.Core.Settings.CanvasSettings _settings = new();
+
+    public static void Configure(AravalsStream.Core.Settings.CanvasSettings settings)
+    {
+        if (!settings.IsValid) throw new ArgumentException("Canvas dimensions must be even numbers from 64 to 4096.", nameof(settings));
+        Volatile.Write(ref _settings, settings with { });
+    }
+
+    public static (int Width, int Height) Size(OutputMode mode)
+    {
+        var settings = Volatile.Read(ref _settings);
+        return mode == OutputMode.Vertical
+            ? (settings.VerticalWidth, settings.VerticalHeight) : (settings.HorizontalWidth, settings.HorizontalHeight);
+    }
 
     public static (double X, double Y) PreviewToCanvas(double previewX, double previewY, double previewWidth, double previewHeight, OutputMode mode)
     {

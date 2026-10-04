@@ -36,7 +36,7 @@ public sealed class OutputDetailsDialog : Window
         var telemetry = activeOutput?.Telemetry;
         var status = activeOutput?.Status ?? destination.Status;
 
-        var res = destination.OutputMode == OutputMode.Vertical ? "1080 x 1920 (Vertical)" : "1920 x 1080 (Horizontal)";
+        var res =  $"{AravalsStream.Core.Services.CanvasLayout.Size(destination.OutputMode).Width} x {AravalsStream.Core.Services.CanvasLayout.Size(destination.OutputMode).Height} ({destination.OutputMode})";
         var encoderName = telemetry?.ActiveEncoder ?? destination.EncoderId;
         var targetBitrate = $"{destination.VideoBitrateKbps} kbps (Audio: {destination.AudioBitrateKbps} kbps)";
         var measuredBitrate = telemetry?.MeasuredBitrateKbps != null

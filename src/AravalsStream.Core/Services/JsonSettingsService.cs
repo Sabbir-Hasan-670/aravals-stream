@@ -36,6 +36,8 @@ public sealed class JsonSettingsService : ISettingsService
         settings.General ??= new();
         settings.Performance ??= new();
         settings.Audio ??= new();
+        settings.Canvas ??= new();
+        if (!settings.Canvas.IsValid) settings.Canvas = new();
         settings.Streaming ??= new();
         settings.Hotkeys ??= [];
         settings.AudioRoutes ??= [];

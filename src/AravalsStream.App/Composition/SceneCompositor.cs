@@ -320,8 +320,8 @@ public sealed class SceneCompositor : ISceneCompositor
                 source => source.Type is SourceType.Alerts or SourceType.ChatOverlay
                     ? AcquireOverlay(source, mode, readers) : AcquireRawFrame(source, readers),
                 destinationBuffer,
-                mode == OutputMode.Vertical ? 1080 : 1920,
-                mode == OutputMode.Vertical ? 1920 : 1080,
+                CanvasLayout.Size(mode).Width,
+                CanvasLayout.Size(mode).Height,
                 (type, ticks) => Metrics?.Stage(type switch
                 {
                     SourceType.DisplayCapture => PipelineStage.DisplayTransform,
