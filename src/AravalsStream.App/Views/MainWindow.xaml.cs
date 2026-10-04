@@ -96,7 +96,12 @@ public partial class MainWindow : Window
         if (secrets is not null) _secrets = secrets;
         if (recovery is not null) _recoveryService = recovery;
         InitializeComponent();
-        Icon = new BitmapImage(new Uri("pack://application:,,,/AravalsStream.App;component/Assets/Brand/Aravals%20Stream.ico"));
+        // Keep the ICO decoder's complete frame set so WPF can choose the native
+        // taskbar/title-bar size instead of scaling the first (16px) frame.
+        var iconDecoder = BitmapDecoder.Create(
+            new Uri("pack://application:,,,/AravalsStream.App;component/Assets/Brand/Aravals%20Stream.ico"),
+            BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+        Icon = iconDecoder.Frames.MaxBy(frame => frame.PixelWidth);
         AravalsStream.App.Controls.DarkWindowChrome.Apply(this);
         SizeChanged += (_, _) => ApplyResponsiveLayout();
         _pairedRemoteDevices = pairedDevices ?? new PairedDeviceRegistry(_secrets);
